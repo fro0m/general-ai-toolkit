@@ -1,0 +1,4 @@
+/output/**
+/output_cli/**
+**/__pycache__/**
+/output_test*/**
