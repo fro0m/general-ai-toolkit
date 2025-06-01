@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+Update all rules files when you change something in a project.
+Update product_requirements.md file product requirements files when you change something in a project. The product_requirements.md file must be 1 to 1 to what works in the product. Product_requirements.md has higher priority than architecture.md .
+Update architecture.md files when you change something in a project.
+Fetch with fetcher MCP and use all coding guidelines from {CodingGuidelinesURLs} URL list. 
+After each task with file editing remove legacy code and unused files.

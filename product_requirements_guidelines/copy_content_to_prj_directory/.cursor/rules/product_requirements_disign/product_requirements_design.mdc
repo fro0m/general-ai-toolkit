@@ -1,0 +1,10 @@
+---
+description: Product requirements define what a product should do, outlining its features, functionalities, and behavior to meet user and business needs. They serve as a blueprint guiding development teams to build products that deliver value and meet stakeholder expectations. UX/UI design focuses on creating intuitive, user-friendly interfaces and experiences, ensuring the product is accessible, engaging, and aligned with user needs. Software architecture describes the high-level structure of a software system, including components, their interactions, and design principles to ensure maintainability, scalability, and performance. System architecture extends this concept to the entire system, encompassing hardware, software, networks, and infrastructure to support the software and meet operational requirements. Together, these disciplines ensure a product is well-defined, user-centric, technically sound, and robust from end to end.
+globs: 
+alwaysApply: false
+---
+Create a product_design directory in the root project directory. Create a product_requirements.md file in a @product_design directory. Write product requirements document as a character with the description in this file: @super_professional_pm_character.md
+Use product requirements file structure described in this file: @PRD_structure_guidelines.md . Research the best approaches and features for such application with Brave-search.
+Create architecture.md file in a product_design directory. Use a character desribed in  as desribed in the file: @super_professional_software_architect_character.md file. Architecture must describe how project must be structured and implemented. Research the best approaches and features for such application with Tavily-search.
+
+@product_requirements_design
