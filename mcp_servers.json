@@ -1,0 +1,44 @@
+  "mcp": {
+        "inputs": [],
+        "servers": {
+            "Context7": {
+                "type": "stdio",
+                "command": "npx",
+                "args": ["-y", "@upstash/context7-mcp@latest"]
+            },
+            "sequential-thinking": {
+                "command": "npx",
+                "args": [
+                    "-y",
+                    "@modelcontextprotocol/server-sequential-thinking"
+                ]
+            },
+                   "brave-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-brave-search"
+      ],
+      "env": {
+        "BRAVE_API_KEY": "BSAT-zzem1sJkYqacE4S2RWQL3jFWhK"
+      }
+    },
+    "tavily-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "tavily-mcp@0.1.3"
+      ],
+      "env": {
+        "TAVILY_API_KEY": "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"
+      }
+    },
+    "dart": {
+      "command": "npx",
+      "args": ["-y", "dart-mcp-server"],
+      "env": {
+        "DART_TOKEN": "dsa_7c27360f29bee86ae333fc6dab54bf20dd2b698878c1edee274198e1f504a6b1"
+      }
+    },
+        }
+    }
