@@ -1,8 +1,8 @@
 Architecture ({ApplicationName}_architecture.md):
 The architecture document outlines the technical blueprint and structure of a system or project. It defines how the system is designed, including its components, their interactions, and the technologies used to meet the project's goals. This includes technical requirements such as system scalability, performance, security, data flow, and infrastructure details. The architecture.md file should focus on the "how" of the system, detailing the technical specifications, frameworks, and design decisions that guide development. For example, it might specify the database structure, APIs, or cloud services to be used.
+
 Product Requirements ({ApplicationName}_product_requirements.md):
 The product requirements document captures the business-oriented goals and needs of the product. It defines "what" the product should do, focusing on features, functionalities, and user expectations as driven by business objectives. This includes business requirements such as target user needs, key features, performance expectations from a user perspective, and any compliance or market-driven constraints. The {ApplicationName}_product_requirements.md file serves as a guide for stakeholders to understand the product’s purpose and scope, ensuring alignment with business goals.
-
 
 Create a product_design directory in {ProjectSpecificAIToolkitPath}/cloud-office-ai-toolkit-files/ directory. Create and write a {ApplicationName}_product_requirements.md file in a product_design directory. Write product requirements document as a character with the description in this file: super_professional_pm_character.md
 Product requirements file must meet structure described in this file: {GeneralAIToolkitPath}/guidelines/PRD_structure_guidelines.md . Research the best approaches and features for such application with Brave-search.  The documents content must be as specific as possible with minimal usage of general phrazes.

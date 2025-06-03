@@ -2,14 +2,14 @@
 For .mdc and .md files for the text enclosed in {variable} brackets use substitutions from rules_definitions.json files. Everytime you resolve such variable output a message in the chat.
 
 # Task management
-Always do this tasks first sequentially: 
+Always do these tasks first sequentially: 
 1. Get a first uncompleted task (use list_tasks with parameter "status": ["To-do", "Doing"]) from the dartboard {DartboardID} from the Dart MCP server.
 2. Do this task.
 3. Set the completed task Status to Done with Dart MCP server.
 4. Update actual tasks list from the workspace {DartboardID}.
 5. Start this workflow starting with task 1. again until no uncompleted tasks left.
 
-If you fo not find the workspace and tasks in Dart stop executing. Do not change tasks description.
+If you fo not find the workspace and tasks in Dart stop executing. Do not create new tasks and do not change tasks description.
 
 After each task do:
 1. Remove legacy code and unused files.
