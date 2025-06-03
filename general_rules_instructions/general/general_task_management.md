@@ -11,7 +11,7 @@ Always do these tasks first sequentially:
 
 If you fo not find the workspace and tasks in Dart stop executing. Do not create new tasks and do not change tasks description.
 
-After each task do:
+After each code editing task do:
 1. Remove legacy code and unused files.
 2. Make sure that project builds 
 3. Create or update a unit test. 

@@ -9,7 +9,7 @@ from loguru import logger
 
 # Define constants
 MAX_ITERATIONS = 600  # Maximum number of iterations to perform
-TIMEOUT = 15*60 #seconds
+TIMEOUT = 5*60 #seconds
 # Configure logger
 logger.add("auto_inserter.log", rotation="10 MB", level="INFO")
 
@@ -52,47 +52,47 @@ class KeyboardAutomation:
             
             # vs code
 
-            # self.press_combination(Key.shift, Key.home) # select text
-            # time.sleep(1)  # 1 second delay
-            #
-            # text = "Continue executing the current task if it exists or do tasks on the dartboard recursively until no unclompleted tasks left. "
-            # logger.info(f"Typing text: {text}")
-            # self.type_text(text)
-            # time.sleep(5)  # 1 second delay
-            #
-            # logger.info("Pressing Enter")
-            # self.press_key(Key.enter)
-            # time.sleep(1)  # 1 second delay
-
-
-            # cursor
-
-            logger.info("Pressing Escape")
-            self.press_key(Key.esc)
-            time.sleep(3)  # 1 second delay
-
-            # logger.info("Pressing Alt+Ctrl+i")
-            self.press_combination(Key.ctrl, 'l')
-            time.sleep(5)  # 1 second delay
-
-
             self.press_combination(Key.shift, Key.home) # select text
-            time.sleep(1)
+            time.sleep(1)  # 1 second delay
 
-            # Type the specified text
-            text = "Continue executing the current task if it exists or do tasks on the dartboard recursively until no unclompleted tasks left."
+            text = "Continue executing the current task if it exists or do tasks on the dartboard recursively until no unclompleted tasks left. "
             logger.info(f"Typing text: {text}")
             self.type_text(text)
             time.sleep(5)  # 1 second delay
-            # Press Escape again
+
             logger.info("Pressing Enter")
             self.press_key(Key.enter)
             time.sleep(1)  # 1 second delay
 
 
-            # Press Escape again
-            logger.info("Pressing Escape")
-            self.press_key(Key.esc)
+            # cursor
+
+            # logger.info("Pressing Escape")
+            # self.press_key(Key.esc)
+            # time.sleep(3)  # 1 second delay
+            #
+            # # logger.info("Pressing Alt+Ctrl+i")
+            # self.press_combination(Key.ctrl, 'l')
+            # time.sleep(5)  # 1 second delay
+            #
+            #
+            # self.press_combination(Key.shift, Key.home) # select text
+            # time.sleep(1)
+            #
+            # # Type the specified text
+            # text = "Continue executing the current task if it exists or do tasks on the dartboard recursively until no unclompleted tasks left."
+            # logger.info(f"Typing text: {text}")
+            # self.type_text(text)
+            # time.sleep(5)  # 1 second delay
+            # # Press Escape again
+            # logger.info("Pressing Enter")
+            # self.press_key(Key.enter)
+            # time.sleep(1)  # 1 second delay
+            #
+            #
+            # # Press Escape again
+            # logger.info("Pressing Escape")
+            # self.press_key(Key.esc)
             
             logger.info("Task sequence completed successfully")
             
