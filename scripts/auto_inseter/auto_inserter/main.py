@@ -9,7 +9,7 @@ from loguru import logger
 
 # Define constants
 MAX_ITERATIONS = 600  # Maximum number of iterations to perform
-TIMEOUT = 5*60 #seconds
+TIMEOUT = 4*60 #seconds
 # Configure logger
 logger.add("auto_inserter.log", rotation="10 MB", level="INFO")
 
