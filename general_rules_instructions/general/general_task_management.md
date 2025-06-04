@@ -5,20 +5,18 @@ For .mdc and .md files for the text enclosed in {variable} brackets use substitu
 Always do these tasks first sequentially: 
 1. Get a first uncompleted task (use list_tasks with parameter "status": ["To-do", "Doing"]) from the dartboard {DartboardID} from the Dart MCP server.
 2. Do this task.
-3. Set the completed task Status to Done with Dart MCP server.
-4. Update actual tasks list from the workspace {DartboardID}.
-5. Start this workflow starting with task 1. again until no uncompleted tasks left.
+3. For code editing tasks, perform these additional actions:
+   a. Remove legacy code and unused files.
+   b. Make sure that project builds.
+   c. Create or update a unit test.
+   d. Run Unit tests and fix issues until unit tests pass successfully.
+   e. Update {ApplicationName}_product_requirements.md and {ApplicationName}_architecture.md files to make them meet actual project state.
+   f. git commit with a meaningful commit message.
+4. Set the completed task Status to Done with Dart MCP server.
+5. Update actual tasks list from the workspace {DartboardID}.
+6. Start this workflow starting with task 1. again until no uncompleted tasks left.
 
-If you fo not find the workspace and tasks in Dart stop executing. Do not create new tasks and do not change tasks description.
-
-After each code editing task do:
-1. Remove legacy code and unused files.
-2. Make sure that project builds 
-3. Create or update a unit test. 
-4. Run Unit tests and fix issues until unit tests pass successfully
-5. Update {ApplicationName}_product_requirements.md and {ApplicationName}_architecture.md files to make them meet actual project state.
-6. git commit with a meaningful commit message
-7. Mark task as done.
+If you do not find the workspace and tasks in Dart stop executing. Do not create new tasks and do not change tasks description.
 
 # MCP use
 Use sequential-thinking MCP server all the time.
