@@ -9,7 +9,7 @@ from loguru import logger
 
 # Define constants
 MAX_ITERATIONS = 600  # Maximum number of iterations to perform
-TIMEOUT = 4*60 #seconds
+TIMEOUT = 1*60 #seconds
 # Configure logger
 logger.add("auto_inserter.log", rotation="10 MB", level="INFO")
 
@@ -51,7 +51,7 @@ class KeyboardAutomation:
             logger.info("Starting task sequence execution")
             
             # vs code
-
+            #
             self.press_combination(Key.shift, Key.home) # select text
             time.sleep(1)  # 1 second delay
 
@@ -93,8 +93,8 @@ class KeyboardAutomation:
 #             # Press Escape again
 #             logger.info("Pressing Escape")
 #             self.press_key(Key.esc)
-#
-            logger.info("Task sequence completed successfully")
+# #
+#             logger.info("Task sequence completed successfully")
             
         except Exception as e:
             logger.error(f"Error executing task sequence: {e}")

@@ -29,5 +29,6 @@ Use fetcher MCP to get content from URLs. Everytime you use fetcher output a mes
 Make required edits to files.
 Do not ask for prompts for executing bash commands.
 
-
+# Handling errors in documentation and guidelines 
+If you find any errors in rules, guidelines, instructions, product requirements, architecture, documentatnion, etc fix it in the assosiated document.
 
