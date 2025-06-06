@@ -2,6 +2,8 @@ For .mdc and .md files for the text enclosed in {variable} brackets use substitu
 
 # Task management
 
+**Note:** All steps in this task management workflow must be performed automatically without prompting.
+
 Follow this workflow for managing tasks:
 
 1.  **Retrieve Task:**
