@@ -1,19 +1,35 @@
 For .mdc and .md files for the text enclosed in {variable} brackets use substitutions from rules_definitions.json files. Everytime you resolve such variable output a message in the chat.
 
 # Task management
-Always do these tasks first sequentially: 
-1. Get a first uncompleted task (use list_tasks with parameter "status": ["To-do", "Doing"]) from the dartboard {DartboardID} from the Dart MCP server.
-2. Do this task.
-3. For code editing tasks, perform these additional actions automatically without prompting:
-   a. Remove legacy code and unused files.
-   b. Make sure that project builds.
-   c. Create or update a unit test.
-   d. Run Unit tests and fix issues until unit tests pass successfully.
-   e. Update {ApplicationName}_product_requirements.md and {ApplicationName}_architecture.md files to make them meet actual project state.
-   f. git commit with a meaningful commit message.
-4. Set the completed task Status to Done with Dart MCP server.
-5. Update actual tasks list from the workspace {DartboardID}.
-6. Start this workflow starting with task 1. again until no uncompleted tasks left.
+
+Follow this workflow for managing tasks:
+
+1.  **Retrieve Task:**
+    *   Get the first uncompleted task from the Dart MCP server (use `list_tasks` with `status: ["To-do", "Doing"]` for dartboard `{DartboardID}`).
+    *   If no uncompleted tasks are found, and you have processed at least one task in this cycle, the workflow is complete.
+    *   If no workspace or tasks are found in Dart initially, stop execution. Do not create new tasks or modify existing task descriptions.
+
+2.  **Execute Task:**
+    *   Perform the actions required to complete the retrieved task.
+
+3.  **Post-Task Routine (for code editing tasks):**
+    *   Perform these actions automatically without prompting:
+        *   **Clean Up:** Remove legacy code and unused files.
+        *   **Build Verification:** Ensure the project builds successfully. If the build fails, identify and fix all build issues before proceeding.
+        *   **Testing:**
+            *   Create or update unit tests.
+            *   Run unit tests and fix any issues until all tests pass.
+        *   **Documentation Update:** Update `{ApplicationName}_product_requirements.md` and `{ApplicationName}_architecture.md` files to reflect the actual project state.
+        *   **Version Control:** Commit changes with a meaningful git commit message.
+
+4.  **Update Task Status:**
+    *   Set the completed task's status to "Done" using the Dart MCP server.
+
+5.  **Refresh Task List:**
+    *   Update the list of actual tasks from the workspace `{DartboardID}`.
+
+6.  **Repeat Workflow:**
+    *   Go back to step 1 to process the next uncompleted task. Continue until no uncompleted tasks remain.
 
 If you do not find the workspace and tasks in Dart stop executing. Do not create new tasks and do not change tasks description.
 
