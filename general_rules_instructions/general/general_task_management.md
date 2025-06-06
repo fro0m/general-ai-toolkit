@@ -12,11 +12,11 @@ Follow this workflow for managing tasks:
     *   If no workspace or tasks are found in Dart initially, stop execution. Do not create new tasks or modify existing task descriptions.
 
 2.  **Execute Task:**
-    *   Perform the actions required to complete the retrieved task.
+    *   Perform the actions required to complete the retrieved task. Focus on making useful edits and do not create any report files about the task performed.
 
 3.  **Post-Task Routine (for code editing tasks):**
     *   Perform these actions automatically without prompting:
-        *   **Clean Up:** Remove legacy code and unused files.
+        *   **Clean Up:** Remove legacy code and unused files. Remove any intermediate temporary files created during the task execution that are no longer needed.
         *   **Build Verification:** Ensure the project builds successfully. If the build fails, identify and fix all build issues before proceeding.
         *   **Testing:**
             *   Create or update unit tests.
