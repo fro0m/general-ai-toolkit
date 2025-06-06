@@ -1,11 +1,10 @@
-
 For .mdc and .md files for the text enclosed in {variable} brackets use substitutions from rules_definitions.json files. Everytime you resolve such variable output a message in the chat.
 
 # Task management
 Always do these tasks first sequentially: 
 1. Get a first uncompleted task (use list_tasks with parameter "status": ["To-do", "Doing"]) from the dartboard {DartboardID} from the Dart MCP server.
 2. Do this task.
-3. For code editing tasks, perform these additional actions:
+3. For code editing tasks, perform these additional actions automatically without prompting:
    a. Remove legacy code and unused files.
    b. Make sure that project builds.
    c. Create or update a unit test.
