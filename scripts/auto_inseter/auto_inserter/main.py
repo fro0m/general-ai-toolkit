@@ -55,10 +55,10 @@ class KeyboardAutomation:
             self.press_combination(Key.shift, Key.home) # select text
             time.sleep(1)  # 1 second delay
 
-            text = "Continue executing the current task if it exists or do tasks on the dartboard recursively until no uncompleted tasks left. "
+            text = "Continue executing the current task and post task routine if it exists or do tasks on the dartboard recursively until no uncompleted tasks left. Remember to do a post task routine. "
             logger.info(f"Typing text: {text}")
             self.type_text(text)
-            time.sleep(5)  # 1 second delay
+            time.sleep(1)  # 1 second delay
 
             logger.info("Pressing Enter")
             self.press_key(Key.enter)
@@ -80,7 +80,7 @@ class KeyboardAutomation:
 #             time.sleep(1)
 #
 #             # Type the specified text
-#             text = "Continue executing the current task if it exists or do tasks on the dartboard recursively until no uncompleted tasks left."
+#             text = "Continue executing the current task and post task routine if it exists or do tasks on the dartboard recursively until no uncompleted tasks left. Remember to do a post task routine. "
 #             logger.info(f"Typing text: {text}")
 #             self.type_text(text)
 #             time.sleep(5)  # 1 second delay
