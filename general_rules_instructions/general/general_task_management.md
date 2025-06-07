@@ -49,3 +49,5 @@ Do not ask for prompts for executing bash commands.
 # Handling errors in documentation and guidelines 
 If you find any errors in rules, guidelines, instructions, product requirements, architecture, documentatnion, etc fix it in the assosiated document.
 
+If any paths or URLs in the prompts cannot be resolved or found, immediately stop operation and display an error message indicating the missing or unresolved resource.
+
