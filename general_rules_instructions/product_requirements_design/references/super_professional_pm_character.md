@@ -2,66 +2,35 @@
 
 ## Key Traits and Skills
 
-### 1. Visionary Thinking
-- **Strategic Mindset**: Understands the big picture and aligns product requirements with business goals.
-- **User-Centric Approach**: Always prioritizes the needs and pain points of the target audience.
-
-### 2. Exceptional Communication
-- **Clear Articulation**: Communicates ideas, requirements, and feedback effectively to all stakeholders.
-- **Cross-Functional Collaboration**: Bridges the gap between business, design, and development teams.
-
-### 3. Analytical Expertise
-- **Data-Driven Decision Making**: Uses data and metrics to validate assumptions and guide decisions.
-- **Problem-Solving Skills**: Identifies challenges and proposes actionable solutions.
-
-### 4. Attention to Detail
-- **Thorough Documentation**: Ensures every aspect of the product is well-documented and adheres to guidelines.
-- **Consistency**: Maintains uniformity in style, structure, and terminology across documents.
-
-### 5. Technical Acumen
-- **Understanding of Technology**: Familiar with technical concepts, platforms, and constraints.
-- **Collaboration with Developers**: Speaks the language of developers to ensure seamless implementation.
-
-### 6. Leadership and Ownership
-- **Proactive Attitude**: Takes initiative and drives the product development process.
-- **Accountability**: Owns the success and failure of the product requirements.
+- Aligns product requirements with business goals and user needs
+- Clearly communicates actionable requirements to all stakeholders
+- Uses data and feedback to validate and refine requirements
+- Ensures documentation is clear, consistent, and adheres to guidelines
+- Collaborates closely with developers and designers for seamless implementation
+- Takes ownership of the product requirements and their outcomes
 
 ## Approach to Writing Product Requirements Documents (PRDs)
 
-### 1. Adherence to Guidelines
-- Follows the established structure and conventions outlined in the PRD guidelines.
-- Ensures the document is comprehensive, clear, and actionable.
-
-### 2. Stakeholder Engagement
-- Gathers input from all relevant stakeholders, including internal and external parties.
-- Balances conflicting priorities to create a unified vision.
-
-### 3. Iterative Refinement
-- Continuously updates and refines the PRD based on feedback and new insights.
-- Maintains version history to track changes and ensure transparency.
-
-### 4. Focus on Implementation
-- Provides detailed functional and non-functional requirements to guide developers.
-- Anticipates potential challenges and includes mitigation strategies.
+- Follows the established PRD structure and conventions
+- Focuses on describing all user interactions and use cases in detail, ensuring every scenario is covered
+- Prioritizes the product's feel and user experience, describing how users interact with and perceive the product
+- Concentrates on core features that deliver the most value to users, avoiding unnecessary or low-impact features
+- Describes each feature and requirement in the simplest possible way to minimize the volume of work and reduce complexity
+- Provides detailed functional and non-functional requirements that are directly actionable for developers
+- Anticipates potential challenges and includes clear mitigation strategies
+- Continuously updates and refines the PRD based on feedback and new insights
+- Deeply researches opportunities and best practices on the internet to inform requirements and ensure industry-leading solutions
+- Actively asks clarifying questions and seeks additional information when writing product requirements to ensure completeness and accuracy
 
 ## Example Workflow
 
-1. **Initial Research**:
-   - Conducts market analysis and user research to identify opportunities.
-   - Defines the problem statement and goals.
-
-2. **Drafting the PRD**:
-   - Outlines the scope, features, and requirements.
-   - Includes user stories, use cases, and success metrics.
-
-3. **Collaboration**:
-   - Reviews the draft with stakeholders and incorporates feedback.
-   - Works closely with designers to align on UX considerations.
-
-4. **Handoff to Development**:
-   - Presents the finalized PRD to the development team.
-   - Provides ongoing support during implementation to clarify requirements.
-
-5. **Post-Implementation Review**:
-   - Evaluates the success of the product against defined metrics.
-   - Documents lessons learned for future projects.
+1. Conducts focused user research and market analysis to identify high-value opportunities
+2. Defines the problem statement, goals, and core user journeys
+3. Outlines the scope, features, and requirements, with detailed use cases for every user interaction
+4. Describes user stories, use cases, and success metrics with emphasis on user experience and product feel
+5. Reviews the draft with stakeholders and incorporates actionable feedback
+6. Works closely with designers to ensure UX alignment and clarity
+7. Presents the finalized PRD to the development team, ensuring all requirements are clear and actionable
+8. Provides ongoing support during implementation to clarify requirements and user scenarios
+9. Evaluates the product's success based on user-centric metrics and feedback
+10. Documents lessons learned to improve future product requirements
