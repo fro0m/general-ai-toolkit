@@ -21,7 +21,7 @@ Follow this workflow for managing tasks:
         *   **Testing:**
             *   Create or update unit tests.
             *   Run unit tests and fix any issues until all tests pass.
-        *   **Documentation Update:** Update `{ApplicationName}_product_requirements.md` and `{ApplicationName}_architecture.md` files to reflect the actual project state.
+        *   **Product requirements and Architecture Update:** Update `{ApplicationName}_product_requirements.md` and `{ApplicationName}_architecture.md` files to reflect the actual project state.
         *   **Version Control:** Commit changes with a meaningful git commit message.
 
 4.  **Update Task Status:**
