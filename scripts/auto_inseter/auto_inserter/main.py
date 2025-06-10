@@ -9,7 +9,7 @@ from loguru import logger
 
 # Define constants
 MAX_ITERATIONS = 900  # Maximum number of iterations to perform
-TIMEOUT = 1*60 #seconds
+TIMEOUT = 15*60 #seconds
 # Configure logger
 logger.add("auto_inserter.log", rotation="10 MB", level="INFO")
 
@@ -55,7 +55,7 @@ class KeyboardAutomation:
             self.press_combination(Key.ctrl, 'a') # select text
             time.sleep(1)  # 1 second delay
 
-            text = "Continue executing the current task if it exists or do tasks on the dartboard recursively until no uncompleted tasks left. Use build_run_rules.instructions.md instructions.md , general.instructions.md and product_requirements_design.instructions.md files."
+            text = "Continue executing the current task if it exists or do tasks on the dartboard recursively until no uncompleted tasks left. Use build_run_rules.instructions.md , general.instructions.md and product_requirements_design.instructions.md files."
             logger.info(f"Typing text: {text}")
             self.type_text(text)
             time.sleep(1)  # 1 second delay
