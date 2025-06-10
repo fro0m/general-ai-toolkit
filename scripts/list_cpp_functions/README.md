@@ -10,6 +10,7 @@ A Python tool to analyze C++ source code files (.cpp, .cc, .cxx, .c++) and heade
 - Handles namespace and class scope resolution
 - Filters out duplicate entries in the output
 - Intelligently distinguishes between function declarations and function calls
+- Robust Qt framework detection to exclude Qt classes and model functions
 - Supports recursive directory scanning
 - Accepts multiple files and directories in a single command
 - Output in both text and JSON formats
@@ -178,6 +179,23 @@ result = calculateSum(5, 10);
 // Common library functions are automatically excluded
 printf("Hello, world!");
 qUtf8Printable(myString);
+```
+
+## Qt Framework Support
+
+The tool has special handling for Qt framework code:
+
+```cpp
+// These Qt classes will NOT be detected as functions
+QWidget *widget = new QWidget();
+QFrame frame;
+QHBoxLayout *layout = new QHBoxLayout();
+QStringList items;
+
+// These Qt model functions will be filtered out
+beginInsertRows(parent, first, last);
+endInsertRows();
+dataChanged(topLeft, bottomRight);
 ```
 
 ## Duplicate Filtering

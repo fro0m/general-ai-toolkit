@@ -35,6 +35,17 @@ class CppFunctionAnalyzer:
             flags=regex.MULTILINE
         )
         
+        # More strict pattern for finding C++ function declarations
+        # Requires return type and function name with parameters followed by ; or {
+        self.stricter_function_pattern = regex.compile(
+            r'(?:(?:virtual|static|inline|explicit|friend|const|extern)?\s+)*'  # Optional function specifiers
+            r'(?:[\w<>:~,\s\*&]+\s+)'  # Return type (required)
+            r'([\w_~]+)\s*\(([^;{}]*)\)\s*'  # Function name and parameters
+            r'(?:const|noexcept|override|final|volatile|\s)*'  # Optional qualifiers
+            r'(?:(?=\{)|(?:=\s*0\s*;)|(?:=\s*default\s*;)|(?:=\s*delete\s*;)|(?:;))',  # Function declaration ending
+            flags=regex.MULTILINE
+        )
+        
         # Pattern for finding class and struct declarations with definitions (not just forward declarations)
         # Look for opening brace and ensure there's content and a closing brace
         self.class_pattern = regex.compile(
@@ -102,6 +113,43 @@ class CppFunctionAnalyzer:
             'std::cerr', 'std::endl', 'QString', 'QByteArray', 'QVariant', 'QObject',
             'connect', 'disconnect', 'emit', 'signal', 'slot', 'tr', 'trUtf8'
         }
+        
+        # Common Qt classes that might be incorrectly identified as functions
+        self.qt_classes = {
+            'QObject', 'QWidget', 'QMainWindow', 'QDialog', 'QFrame', 'QLabel',
+            'QPushButton', 'QLineEdit', 'QTextEdit', 'QCheckBox', 'QRadioButton',
+            'QComboBox', 'QListWidget', 'QTableWidget', 'QTreeWidget', 'QGroupBox',
+            'QTabWidget', 'QStackedWidget', 'QSplitter', 'QScrollArea', 'QToolBar',
+            'QMenuBar', 'QMenu', 'QAction', 'QStatusBar', 'QDockWidget', 'QLayout',
+            'QBoxLayout', 'QHBoxLayout', 'QVBoxLayout', 'QGridLayout', 'QFormLayout',
+            'QSignalMapper', 'QTimer', 'QThread', 'QMutex', 'QSemaphore', 'QWaitCondition',
+            'QFile', 'QDir', 'QFileInfo', 'QFileDialog', 'QMessageBox', 'QInputDialog',
+            'QColorDialog', 'QFontDialog', 'QProgressDialog', 'QErrorMessage',
+            'QProgressBar', 'QSlider', 'QSpinBox', 'QDoubleSpinBox', 'QTimeEdit',
+            'QDateEdit', 'QDateTimeEdit', 'QCalendarWidget', 'QDial', 'QLCDNumber',
+            'QGraphicsView', 'QGraphicsScene', 'QGraphicsItem', 'QPainter', 'QPen',
+            'QBrush', 'QColor', 'QFont', 'QPixmap', 'QIcon', 'QImage', 'QBitmap',
+            'QPicture', 'QMovie', 'QSvgRenderer', 'QSvgGenerator', 'QAbstractButton',
+            'QAbstractItemModel', 'QAbstractListModel', 'QAbstractTableModel',
+            'QStandardItemModel', 'QStringListModel', 'QSortFilterProxyModel',
+            'QItemDelegate', 'QStyledItemDelegate', 'QStringList', 'QVariant',
+            'QMap', 'QHash', 'QSet', 'QList', 'QVector', 'QString', 'QByteArray',
+            'QDate', 'QTime', 'QDateTime', 'QUrl', 'QUuid', 'QModelIndex',
+            'QItemSelection', 'QSizePolicy', 'QValidator', 'QRegExpValidator'
+        }
+        
+        # Qt model functions that are often used in signals/slots and should be excluded
+        self.qt_model_functions = {
+            'rowCount', 'columnCount', 'data', 'setData', 'headerData',
+            'index', 'parent', 'flags', 'insertRows', 'removeRows',
+            'insertColumns', 'removeColumns', 'beginInsertRows', 'endInsertRows',
+            'beginRemoveRows', 'endRemoveRows', 'beginInsertColumns', 'endInsertColumns',
+            'beginRemoveColumns', 'endRemoveColumns', 'beginResetModel', 'endResetModel',
+            'dataChanged', 'layoutChanged', 'layoutAboutToBeChanged', 'modelReset',
+            'modelAboutToBeReset', 'rowsInserted', 'rowsAboutToBeInserted',
+            'rowsRemoved', 'rowsAboutToBeRemoved', 'columnsInserted',
+            'columnsAboutToBeInserted', 'columnsRemoved', 'columnsAboutToBeRemoved'
+        }
 
     def remove_comments(self, text):
         """Remove C and C++ style comments from text."""
@@ -147,25 +195,60 @@ class CppFunctionAnalyzer:
         for match in self.function_call_pattern.finditer(content_without_comments):
             function_calls.add(match.group(1))
         
-        # Find global functions (declarations only)
-        global_functions = self.function_pattern.finditer(content_without_comments)
-        for match in global_functions:
-            func_name = match.group(1)
-            params = match.group(2).strip()
-            
-            # Skip control keywords and common function calls
-            if func_name in self.control_keywords or func_name in self.common_function_calls:
-                continue
+        # First try the stricter function pattern for .cpp files
+        if file_extension in ['.cpp', '.cc', '.cxx', '.c++']:
+            stricter_global_functions = self.stricter_function_pattern.finditer(content_without_comments)
+            for match in stricter_global_functions:
+                func_name = match.group(1)
+                params = match.group(2).strip()
                 
-            # Skip if it's likely a function call
-            if func_name in function_calls:
-                continue
+                # Skip control keywords, common function calls, Qt classes, and Qt model functions
+                if (func_name in self.control_keywords or 
+                    func_name in self.common_function_calls or
+                    func_name in self.qt_classes or
+                    func_name in self.qt_model_functions):
+                    continue
                 
-            results['global_functions'].append({
-                'name': func_name,
-                'parameters': params,
-                'position': match.start()
-            })
+                # Skip if it's likely a function call
+                if func_name in function_calls:
+                    continue
+                
+                # Skip if the name starts with Q (likely a Qt class)
+                if func_name.startswith('Q') and len(func_name) > 1 and func_name[1].isupper():
+                    continue
+                
+                results['global_functions'].append({
+                    'name': func_name,
+                    'parameters': params,
+                    'position': match.start()
+                })
+        else:
+            # For header files, use the regular function pattern
+            global_functions = self.function_pattern.finditer(content_without_comments)
+            for match in global_functions:
+                func_name = match.group(1)
+                params = match.group(2).strip()
+                
+                # Skip control keywords, common function calls, Qt classes, and Qt model functions
+                if (func_name in self.control_keywords or 
+                    func_name in self.common_function_calls or
+                    func_name in self.qt_classes or
+                    func_name in self.qt_model_functions):
+                    continue
+                    
+                # Skip if it's likely a function call
+                if func_name in function_calls:
+                    continue
+                
+                # Skip if the name starts with Q (likely a Qt class)
+                if func_name.startswith('Q') and len(func_name) > 1 and func_name[1].isupper():
+                    continue
+                    
+                results['global_functions'].append({
+                    'name': func_name,
+                    'parameters': params,
+                    'position': match.start()
+                })
         
         # Find class declarations and their methods
         class_matches = self.class_pattern.finditer(content_without_comments)
@@ -231,8 +314,10 @@ class CppFunctionAnalyzer:
                     method_name = method_match.group(1)
                     params = method_match.group(2).strip()
                     
-                    # Skip control keywords and common function calls
-                    if method_name in self.control_keywords or method_name in self.common_function_calls:
+                    # Skip control keywords, common function calls, and Qt model functions
+                    if (method_name in self.control_keywords or 
+                        method_name in self.common_function_calls or
+                        method_name in self.qt_model_functions):
                         continue
                     
                     # Skip if it's likely a function call
@@ -256,12 +341,19 @@ class CppFunctionAnalyzer:
             function_name = impl_match.group('function')
             params = impl_match.group('params').strip()
             
-            # Skip control structures that may be matched incorrectly
-            if function_name in self.control_keywords or function_name in self.common_function_calls:
+            # Skip control structures, common function calls, Qt classes, and Qt model functions
+            if (function_name in self.control_keywords or 
+                function_name in self.common_function_calls or
+                function_name in self.qt_classes or
+                function_name in self.qt_model_functions):
                 continue
             
             # Skip if it's likely a function call
             if function_name in function_calls:
+                continue
+            
+            # Skip if the name starts with Q (likely a Qt class)
+            if function_name.startswith('Q') and len(function_name) > 1 and function_name[1].isupper():
                 continue
                 
             # Create a unique identifier for this implementation
