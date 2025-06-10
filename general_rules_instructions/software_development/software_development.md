@@ -4,4 +4,4 @@ Before creating any new classes, the `{ApplicationName}_architecture.md` documen
 
 When fixing bugs or addressing issues, the primary approach must be to identify and fix the root cause of the problem. Do not add defensive code, excessive error handling, or workarounds that mask the underlying issue.
 
-Fetch with fetcher MCP and use all coding guidelines from {CodingGuidelinesURLs} URL list.
+Fetch with fetcher MCP and use all coding guidelines from {CodingGuidelinesURLs} list, which can contain both web URLs and local file paths. The content from these guidelines should be incorporated with the current file content.
