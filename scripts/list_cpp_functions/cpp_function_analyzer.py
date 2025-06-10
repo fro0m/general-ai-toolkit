@@ -101,7 +101,8 @@ class CppFunctionAnalyzer:
             'extension': file_extension,
             'global_functions': [],
             'class_methods': [],
-            'function_implementations': []
+            'function_implementations': [],
+            'classes_and_structs': []  # New field to store class and struct names
         }
         
         # Find global functions (declarations only)
@@ -125,6 +126,14 @@ class CppFunctionAnalyzer:
         for class_match in class_matches:
             class_name = class_match.group(1)
             class_start = class_match.start()
+            
+            # Add class name to results
+            class_or_struct = "class" if "class " in content_without_comments[class_start-10:class_start+10] else "struct"
+            results['classes_and_structs'].append({
+                'type': class_or_struct,
+                'name': class_name,
+                'position': class_start
+            })
             
             # Find the closing brace of the class
             # This is a simplistic approach; a proper parser would handle nested braces
@@ -223,6 +232,19 @@ class CppFunctionAnalyzer:
             results.append(file_result)
         
         return results
+    
+    def analyze_files(self, file_paths: List[str]) -> List[Dict]:
+        """Analyze a list of C++ files and return their functions and methods."""
+        results = []
+        
+        for file_path in file_paths:
+            if os.path.exists(file_path):
+                file_result = self.analyze_file(file_path)
+                results.append(file_result)
+            else:
+                print(f"Warning: File not found: {file_path}")
+        
+        return results
 
 
 def format_output(results: List[Dict], verbose: bool = False, output_format: str = 'text') -> str:
@@ -239,6 +261,12 @@ def format_output(results: List[Dict], verbose: bool = False, output_format: str
         
         if verbose:
             output.append(f"  Extension: {file_result['extension']}")
+        
+        # Display classes and structs
+        if file_result['classes_and_structs']:
+            output.append("  Classes and Structs:")
+            for cls in sorted(file_result['classes_and_structs'], key=lambda x: x['name']):
+                output.append(f"    {cls['type']}: {cls['name']}")
         
         if file_result['global_functions']:
             output.append("  Global Functions:")
@@ -277,7 +305,7 @@ def format_output(results: List[Dict], verbose: bool = False, output_format: str
 
 def main():
     parser = argparse.ArgumentParser(description='Analyze C++ files to list functions and class methods.')
-    parser.add_argument('path', help='Path to a C++ file or directory containing C++ files')
+    parser.add_argument('paths', nargs='+', help='Paths to C++ files or directories containing C++ files')
     parser.add_argument('-r', '--recursive', action='store_true', help='Recursively search directories for C++ files')
     parser.add_argument('-v', '--verbose', action='store_true', help='Display detailed information including function parameters')
     parser.add_argument('-f', '--format', choices=['text', 'json'], default='text', help='Output format (text or JSON)')
@@ -286,14 +314,19 @@ def main():
     args = parser.parse_args()
     
     analyzer = CppFunctionAnalyzer()
+    all_results = []
     
-    path = args.path
-    if os.path.isfile(path):
-        results = [analyzer.analyze_file(path)]
-    else:
-        results = analyzer.analyze_directory(path, args.recursive)
+    for path in args.paths:
+        if os.path.isfile(path):
+            result = analyzer.analyze_file(path)
+            all_results.append(result)
+        elif os.path.isdir(path):
+            results = analyzer.analyze_directory(path, args.recursive)
+            all_results.extend(results)
+        else:
+            print(f"Warning: Path not found: {path}")
     
-    output_str = format_output(results, args.verbose, args.format)
+    output_str = format_output(all_results, args.verbose, args.format)
     
     if args.output:
         with open(args.output, 'w', encoding='utf-8') as out_file:

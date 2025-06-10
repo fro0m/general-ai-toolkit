@@ -5,10 +5,11 @@ A Python tool to analyze C++ source code files (.cpp, .cc, .cxx, .c++) and heade
 ## Features
 
 - Extracts global functions from C++ files
-- Identifies class declarations and their methods
+- Identifies class and struct declarations and their methods
 - Detects function implementations in .cpp files
 - Handles namespace and class scope resolution
 - Supports recursive directory scanning
+- Accepts multiple files and directories in a single command
 - Output in both text and JSON formats
 - Function and method parameters display in verbose mode
 - Alphabetical sorting of functions and methods for better readability
@@ -56,8 +57,17 @@ cpp-function-analyzer path/to/file.cpp
 # Analyze a single file
 cpp-function-analyzer path/to/file.cpp
 
+# Analyze multiple files
+cpp-function-analyzer path/to/file1.cpp path/to/file2.cpp path/to/file3.h
+
 # Analyze a directory (non-recursive)
 cpp-function-analyzer path/to/directory
+
+# Analyze multiple directories
+cpp-function-analyzer path/to/directory1 path/to/directory2
+
+# Analyze a mix of files and directories
+cpp-function-analyzer path/to/file.cpp path/to/directory
 
 # Analyze a directory recursively
 cpp-function-analyzer -r path/to/directory
@@ -74,7 +84,7 @@ cpp-function-analyzer -o results.txt path/to/file.cpp
 
 ## Command Line Options
 
-- `path`: Path to a C++ file or directory containing C++ files
+- `paths`: One or more paths to C++ files or directories containing C++ files
 - `-r, --recursive`: Recursively search directories for C++ files
 - `-v, --verbose`: Display detailed information including function parameters
 - `-f, --format`: Output format (text or JSON)
@@ -111,6 +121,18 @@ When using the `-f json` option, the tool outputs a structured JSON format that 
         "name": "methodName",
         "parameters": "param1, param2",
         "position": 789
+      }
+    ],
+    "classes_and_structs": [
+      {
+        "type": "class",
+        "name": "ClassName",
+        "position": 100
+      },
+      {
+        "type": "struct",
+        "name": "StructName",
+        "position": 200
       }
     ]
   }
