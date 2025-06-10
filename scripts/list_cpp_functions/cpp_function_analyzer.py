@@ -17,6 +17,7 @@ class CppFunctionAnalyzer:
         )
         
         # Regex pattern for finding C++ function declarations in .h and .cpp files
+        # Updated to be more strict about function declarations vs. calls
         self.function_pattern = regex.compile(
             r'(?<!\bvirtual\s+)(?<!\bstatic\s+)(?<!\bconst\s+)(?<!\bextern\s+)(?<!\btypedef\s+)'
             r'(?<!\btemplate\s*<[^>]*>\s*)'
@@ -25,6 +26,7 @@ class CppFunctionAnalyzer:
             r'(?<!\b#define\s+)'
             r'(?<!\benum\s+)'
             r'(?<!\bnamespace\s+)'
+            r'(?!\bif\b|\belse\b|\bfor\b|\bwhile\b|\bswitch\b|\bcatch\b|\breturn\b|\bsizeof\b|\bdelete\b|\bnew\b)'
             r'(?:\b(?:virtual|static|inline|explicit|friend|const|extern)?\s+)*'
             r'(?!if|else|for|while|switch|catch|return|sizeof)(?:\w+::\s*)*(?!if|else|for|while|switch|catch|return|sizeof)[\w<>:~,\s\*&]+\s+'
             r'([\w_~]+)\s*\(([^;{}]*)\)\s*'
@@ -33,10 +35,17 @@ class CppFunctionAnalyzer:
             flags=regex.MULTILINE
         )
         
-        # Pattern for finding class and struct declarations
+        # Pattern for finding class and struct declarations with definitions (not just forward declarations)
+        # Look for opening brace and ensure there's content and a closing brace
         self.class_pattern = regex.compile(
             r'\b(?:class|struct)\s+(\w+)(?:\s*:\s*(?:public|protected|private)\s+\w+(?:\s*,\s*(?:public|protected|private)\s+\w+)*)?\s*\{',
             flags=regex.MULTILINE
+        )
+        
+        # Pattern to find forward declarations (to exclude them)
+        self.forward_declaration_pattern = re.compile(
+            r'\b(?:class|struct)\s+(\w+)\s*;',
+            flags=re.MULTILINE
         )
         
         # Pattern for finding class method declarations inside class definitions
@@ -47,6 +56,15 @@ class CppFunctionAnalyzer:
             r'([\w_~]+)\s*\(([^;{}]*)\)\s*'
             r'(?:const|noexcept|override|final|volatile|\s)*'
             r'(?:(?=\{)|(?:=\s*0\s*;)|(?:=\s*default\s*;)|(?:=\s*delete\s*;)|(?:;))',
+            flags=regex.MULTILINE
+        )
+        
+        # Pattern to identify function calls (to exclude them)
+        # Using regex module instead of re for variable-width lookbehind support
+        self.function_call_pattern = regex.compile(
+            r'(?<!\bvoid\s+|\bint\s+|\bchar\s+|\bdouble\s+|\bfloat\s+|\blong\s+|\bunsigned\s+|\bshort\s+|\bbool\s+|\bstruct\s+|\bclass\s+|\benum\s+|\bauto\s+|\bconst\s+)'
+            r'(?<!\w\s+|\bvirtual\s+|\bstatic\s+|\bextern\s+|\binline\s+|\bexplicit\s+|\bfriend\s+)'
+            r'(\w+)\s*\([^;{}]*\)\s*(?!;|{|=\s*0|=\s*default|=\s*delete)',
             flags=regex.MULTILINE
         )
         
@@ -68,8 +86,22 @@ class CppFunctionAnalyzer:
         )
         
         # Common control flow keywords to filter out
-        self.control_keywords = {'if', 'else', 'for', 'while', 'switch', 'catch', 'return', 
-                                'sizeof', 'lambda', 'do', 'case', 'try', 'throw'}
+        self.control_keywords = {
+            'if', 'else', 'for', 'while', 'switch', 'catch', 'return', 
+            'sizeof', 'lambda', 'do', 'case', 'try', 'throw', 'delete', 'new',
+            'NULL', 'nullptr', 'true', 'false', 'this', 'break', 'continue',
+            'template', 'typedef', 'typename', 'goto', 'printf', 'cout', 'cin'
+        }
+        
+        # Common function names that are likely function calls, not declarations
+        self.common_function_calls = {
+            'printf', 'sprintf', 'fprintf', 'scanf', 'fscanf', 'sscanf', 'qDebug', 
+            'qWarning', 'qCritical', 'qInfo', 'qFatal', 'qUtf8Printable', 'malloc', 
+            'free', 'realloc', 'calloc', 'memset', 'memcpy', 'strlen', 'strcmp',
+            'strcpy', 'strcat', 'assert', 'exit', 'abort', 'std::cout', 'std::cin',
+            'std::cerr', 'std::endl', 'QString', 'QByteArray', 'QVariant', 'QObject',
+            'connect', 'disconnect', 'emit', 'signal', 'slot', 'tr', 'trUtf8'
+        }
 
     def remove_comments(self, text):
         """Remove C and C++ style comments from text."""
@@ -105,14 +137,28 @@ class CppFunctionAnalyzer:
             'classes_and_structs': []  # New field to store class and struct names
         }
         
+        # Find forward declarations to exclude them
+        forward_declarations = set()
+        for match in self.forward_declaration_pattern.finditer(content_without_comments):
+            forward_declarations.add(match.group(1))
+        
+        # Find function calls to exclude them
+        function_calls = set()
+        for match in self.function_call_pattern.finditer(content_without_comments):
+            function_calls.add(match.group(1))
+        
         # Find global functions (declarations only)
         global_functions = self.function_pattern.finditer(content_without_comments)
         for match in global_functions:
             func_name = match.group(1)
             params = match.group(2).strip()
             
-            # Skip control keywords
-            if func_name in self.control_keywords:
+            # Skip control keywords and common function calls
+            if func_name in self.control_keywords or func_name in self.common_function_calls:
+                continue
+                
+            # Skip if it's likely a function call
+            if func_name in function_calls:
                 continue
                 
             results['global_functions'].append({
@@ -127,18 +173,37 @@ class CppFunctionAnalyzer:
             class_name = class_match.group(1)
             class_start = class_match.start()
             
+            # Skip forward declarations
+            if class_name in forward_declarations:
+                # Check if this is really a definition by looking for content between braces
+                open_braces = 1
+                class_end = class_start + len(class_match.group(0))
+                has_content = False
+                
+                for i in range(class_end, len(content_without_comments)):
+                    if content_without_comments[i] == '{':
+                        open_braces += 1
+                    elif content_without_comments[i] == '}':
+                        open_braces -= 1
+                        if open_braces == 0:
+                            # Check if there's any non-whitespace content between braces
+                            class_content = content_without_comments[class_end:i].strip()
+                            if class_content:
+                                has_content = True
+                            class_end = i + 1
+                            break
+                
+                if not has_content:
+                    continue  # Skip empty class/struct definitions
+            
             # Add class name to results
             class_or_struct = "class" if "class " in content_without_comments[class_start-10:class_start+10] else "struct"
-            results['classes_and_structs'].append({
-                'type': class_or_struct,
-                'name': class_name,
-                'position': class_start
-            })
             
             # Find the closing brace of the class
             # This is a simplistic approach; a proper parser would handle nested braces
             open_braces = 1
             class_end = class_start + len(class_match.group(0))
+            class_body = ""
             
             for i in range(class_end, len(content_without_comments)):
                 if content_without_comments[i] == '{':
@@ -146,27 +211,40 @@ class CppFunctionAnalyzer:
                 elif content_without_comments[i] == '}':
                     open_braces -= 1
                     if open_braces == 0:
+                        class_body = content_without_comments[class_end:i].strip()
                         class_end = i + 1
                         break
             
-            class_content = content_without_comments[class_start:class_end]
-            
-            # Find methods inside the class
-            method_matches = self.class_method_pattern.finditer(class_content)
-            for method_match in method_matches:
-                method_name = method_match.group(1)
-                params = method_match.group(2).strip()
-                
-                # Skip control keywords
-                if method_name in self.control_keywords:
-                    continue
-                    
-                results['class_methods'].append({
-                    'class': class_name,
-                    'name': method_name,
-                    'parameters': params,
-                    'position': class_start + method_match.start()
+            # Only add classes/structs with non-empty bodies
+            if class_body:
+                results['classes_and_structs'].append({
+                    'type': class_or_struct,
+                    'name': class_name,
+                    'position': class_start
                 })
+                
+                class_content = content_without_comments[class_start:class_end]
+                
+                # Find methods inside the class
+                method_matches = self.class_method_pattern.finditer(class_content)
+                for method_match in method_matches:
+                    method_name = method_match.group(1)
+                    params = method_match.group(2).strip()
+                    
+                    # Skip control keywords and common function calls
+                    if method_name in self.control_keywords or method_name in self.common_function_calls:
+                        continue
+                    
+                    # Skip if it's likely a function call
+                    if method_name in function_calls:
+                        continue
+                        
+                    results['class_methods'].append({
+                        'class': class_name,
+                        'name': method_name,
+                        'parameters': params,
+                        'position': class_start + method_match.start()
+                    })
         
         # Find function implementations (especially in .cpp files)
         function_implementations = set()  # Use a set to avoid duplicates
@@ -179,7 +257,11 @@ class CppFunctionAnalyzer:
             params = impl_match.group('params').strip()
             
             # Skip control structures that may be matched incorrectly
-            if function_name in self.control_keywords:
+            if function_name in self.control_keywords or function_name in self.common_function_calls:
+                continue
+            
+            # Skip if it's likely a function call
+            if function_name in function_calls:
                 continue
                 
             # Create a unique identifier for this implementation
@@ -253,6 +335,11 @@ def format_output(results: List[Dict], verbose: bool = False, output_format: str
         import json
         return json.dumps(results, indent=2)
     
+    # Track unique functions to avoid duplicates in output
+    seen_functions = set()
+    seen_methods = set()
+    seen_classes = set()
+    
     # Text output format
     output = []
     for file_result in results:
@@ -266,23 +353,34 @@ def format_output(results: List[Dict], verbose: bool = False, output_format: str
         if file_result['classes_and_structs']:
             output.append("  Classes and Structs:")
             for cls in sorted(file_result['classes_and_structs'], key=lambda x: x['name']):
-                output.append(f"    {cls['type']}: {cls['name']}")
+                class_key = f"{cls['type']}:{cls['name']}"
+                if class_key not in seen_classes:
+                    output.append(f"    {cls['type']}: {cls['name']}")
+                    seen_classes.add(class_key)
         
         if file_result['global_functions']:
             output.append("  Global Functions:")
             for func in sorted(file_result['global_functions'], key=lambda x: x['name']):
-                if verbose:
-                    output.append(f"    {func['name']}({func['parameters']})")
-                else:
-                    output.append(f"    {func['name']}")
+                # Use function name and parameters as a unique identifier
+                func_key = f"{func['name']}:{func['parameters']}" if verbose else func['name']
+                if func_key not in seen_functions:
+                    if verbose:
+                        output.append(f"    {func['name']}({func['parameters']})")
+                    else:
+                        output.append(f"    {func['name']}")
+                    seen_functions.add(func_key)
         
         if file_result['class_methods']:
             output.append("  Class Methods:")
             for method in sorted(file_result['class_methods'], key=lambda x: (x['class'], x['name'])):
-                if verbose:
-                    output.append(f"    {method['class']}::{method['name']}({method['parameters']})")
-                else:
-                    output.append(f"    {method['class']}::{method['name']}")
+                # Use class, method name, and parameters as a unique identifier
+                method_key = f"{method['class']}::{method['name']}:{method['parameters']}" if verbose else f"{method['class']}::{method['name']}"
+                if method_key not in seen_methods:
+                    if verbose:
+                        output.append(f"    {method['class']}::{method['name']}({method['parameters']})")
+                    else:
+                        output.append(f"    {method['class']}::{method['name']}")
+                    seen_methods.add(method_key)
         
         if file_result['function_implementations'] and verbose:
             output.append("  Function Implementations:")
@@ -296,7 +394,11 @@ def format_output(results: List[Dict], verbose: bool = False, output_format: str
                 elif impl['namespace']:
                     class_prefix = f"{impl['namespace']}::"
                 
-                output.append(f"    {class_prefix}{impl['name']}({impl['parameters']})")
+                # Use full qualified name and parameters as a unique identifier
+                impl_key = f"{class_prefix}{impl['name']}:{impl['parameters']}"
+                if impl_key not in seen_functions:
+                    output.append(f"    {class_prefix}{impl['name']}({impl['parameters']})")
+                    seen_functions.add(impl_key)
         
         output.append("")  # Empty line between files
     

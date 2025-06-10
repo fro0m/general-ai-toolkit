@@ -5,9 +5,11 @@ A Python tool to analyze C++ source code files (.cpp, .cc, .cxx, .c++) and heade
 ## Features
 
 - Extracts global functions from C++ files
-- Identifies class and struct declarations and their methods
+- Identifies class and struct declarations with actual definitions (not just forward declarations)
 - Detects function implementations in .cpp files
 - Handles namespace and class scope resolution
+- Filters out duplicate entries in the output
+- Intelligently distinguishes between function declarations and function calls
 - Supports recursive directory scanning
 - Accepts multiple files and directories in a single command
 - Output in both text and JSON formats
@@ -138,6 +140,49 @@ When using the `-f json` option, the tool outputs a structured JSON format that 
   }
 ]
 ```
+
+## Class and Struct Detection
+
+The tool only identifies classes and structs that have actual definitions with non-empty bodies, not just forward declarations. For example:
+
+```cpp
+// This will be detected
+class MyClass {
+    int member;
+    void method();
+};
+
+// This will NOT be detected (forward declaration)
+class ForwardDeclared;
+
+// This will NOT be detected (empty definition)
+struct EmptyStruct {};
+```
+
+## Function Detection
+
+The tool is designed to distinguish between function declarations/definitions and function calls:
+
+```cpp
+// This will be detected (function declaration)
+void myFunction(int param);
+
+// This will be detected (function definition)
+int calculateSum(int a, int b) {
+    return a + b;
+}
+
+// This will NOT be detected (function call)
+result = calculateSum(5, 10);
+
+// Common library functions are automatically excluded
+printf("Hello, world!");
+qUtf8Printable(myString);
+```
+
+## Duplicate Filtering
+
+The tool automatically filters out duplicate entries in the output. If the same function or method appears multiple times in the analyzed files, it will only be listed once in the output.
 
 ## Limitations
 
