@@ -2,16 +2,15 @@
 **Important Instruction for Processing Variables:**
 For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{variable}`, must be substituted with the corresponding value found in the `rules_definitions.json` file. Announce in the chat each time such a variable is resolved.
 
-# Task Management Workflow
+# Task management
 
-**Note:** All steps in this workflow must be performed autonomously by the LLM agent without requiring user prompts for individual actions.
+**Note:** All steps in this task management workflow must be performed automatically without prompting. Throughout the entire AI agent coding session, the dartboard specified by the user must be used. If the user has not specified a dartboard, fallback to the dartboard specified in `{DartboardID}` for all task-related operations.
 
 Follow this workflow for managing tasks:
 
 1.  **Retrieve Task:**
-    *   Fetch uncompleted tasks from the Dart MCP server. Use the `list_tasks` function with the `status` parameter set to `["To-do", "Doing"]` and filter by the dartboard specified by the `{DartboardID}` variable.
-    *   If multiple uncompleted tasks are returned, process them sequentially, starting with the oldest task first.
-    *   If no uncompleted tasks are found after at least one task has been processed in the current cycle, the workflow is considered complete.
+    *   Get the first uncompleted task from the Dart MCP server. Use `list_tasks` with `status: ["To-do", "Doing"]` for the active dartboard (either user-specified or the fallback `{DartboardID}`) unless the user explicitly requests a different dartboard.
+    *   If no uncompleted tasks are found, and you have processed at least one task in this cycle, the workflow is complete.
     *   If the Dart workspace or any tasks are not found initially, halt execution. Do not create new tasks or alter existing task descriptions.
 
 2.  **Execute Task:**
