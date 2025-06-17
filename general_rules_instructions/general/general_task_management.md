@@ -1,4 +1,3 @@
-<!-- filepath: /home/dev/dev/prj/general-ai-toolkit/general_rules_instructions/general/general_task_management.md -->
 **Important Instruction for Processing Variables:**
 For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{variable}`, must be substituted with the corresponding value found in the `rules_definitions.json` file. Announce in the chat each time such a variable is resolved.
 
