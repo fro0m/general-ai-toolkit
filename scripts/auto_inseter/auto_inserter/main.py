@@ -55,7 +55,7 @@ class KeyboardAutomation:
             self.press_combination(Key.ctrl, 'a') # select text
             time.sleep(1)  # 1 second delay
 
-            text = "Continue executing the current task if it exists or do tasks on the dartboard MyOffice/HardTasks iteratively until no uncompleted tasks left. Use build_run_rules.instructions.md , general.instructions.md and product_requirements_design.instructions.md files."
+            text = "Continue executing the current task if it exists or do tasks on the dartboard AutoPrompter/HardTasks iteratively until no uncompleted tasks left. Use build_run_rules.instructions.md , general.instructions.md and product_requirements_design.instructions.md files."
             logger.info(f"Typing text: {text}")
             self.type_text(text)
             time.sleep(1)  # 1 second delay
