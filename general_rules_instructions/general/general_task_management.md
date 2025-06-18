@@ -16,25 +16,28 @@ Follow this workflow for managing tasks:
     *   Perform the necessary actions to complete the retrieved task. The primary focus should be on making meaningful and functional edits. Do not generate report files about the task execution.
 
 3.  **Post-Task Routine (Applicable for Code Editing Tasks):**
-    *   Execute the following actions automatically and without user prompts:
+    *   Execute the following actions automatically and without user prompts. **Each step must be completed successfully before proceeding to the next step. If any issues arise during any step, they must be resolved before continuing to the subsequent step:**
         *   **Clean Up:**
             *   Remove legacy code: This refers to code that is no longer in use, deprecated, or has been replaced by newer implementations.
             *   Remove unused files: Delete any files that are not essential for the project's functionality or build process.
             *   Remove temporary files: Delete any intermediate files created during task execution that are no longer needed.
+            *   **Proceed to the next step only after all cleanup tasks are completed successfully.**
         *   **Build Verification:**
             *   Confirm that the project builds successfully.
             *   If the build fails, identify the root causes and implement fixes until the build succeeds.
+            *   **Do not proceed to testing until the build is completely successful.**
         *   **Testing:**
             *   Create new unit tests or update existing ones to ensure adequate coverage for the changes made.
             *   Run all available unit tests.
             *   If any tests fail, debug and fix the underlying issues until all unit tests pass.
+            *   **Do not proceed to documentation updates until all tests pass successfully.**
         *   **Product Requirements and Architecture Documentation Update:**
             *   Update the `{ApplicationName}_product_requirements.md` and `{ApplicationName}_architecture.md` files. Ensure these documents accurately reflect the current state of the project after the changes.
             *   No other documentation documents should be created or updated as part of this step.
+            *   **Do not proceed to version control until documentation updates are completed successfully.**
         *   **Version Control:**
             *   Commit all changes to the version control system (e.g., Git).
             *   Use a clear and descriptive commit message. Consider using a conventional commit format (e.g., `feat: add new login endpoint`) if applicable to the project.
-
 4.  **Update Task Status:**
     *   Mark the completed task's status as "Done" using the Dart MCP server (e.g., via an `update_task` function).
 

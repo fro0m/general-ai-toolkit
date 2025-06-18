@@ -8,7 +8,7 @@ from pynput.keyboard import Key, Controller
 from loguru import logger
 
 # Define constants
-MAX_ITERATIONS = 900  # Maximum number of iterations to perform
+MAX_ITERATIONS = 40  # Maximum number of iterations to perform
 TIMEOUT = 5*60 #seconds
 # Configure logger
 logger.add("auto_inserter.log", rotation="10 MB", level="INFO")
