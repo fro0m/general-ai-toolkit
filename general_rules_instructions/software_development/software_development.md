@@ -16,6 +16,7 @@ For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{var
    - Adapt your modifications to work with the current file state
    - Inform the user about any conflicts or adjustments made
 4. **Document assumptions**: When making changes, note what version of the file you're working with
+5. **No backup files**: Do not create backup copies (.bak, .backup, .old) of files during editing operations - use version control for file history management
 
 #### Example File Modification Workflow:
 ```bash
@@ -46,6 +47,7 @@ When fixing bugs or addressing issues:
 - Delete unused files that are not essential for the project's functionality or build process
 - Clean up temporary files created during development that are no longer needed
 - Ensure all code follows the project's established patterns and conventions
+- **Do not create file backups** (e.g., .bak, .backup, .old files) during development operations - rely on version control for file history and recovery
 
 ### 5. Coding Guidelines Integration
 Use all coding guidelines from the `{CodingGuidelinesURLs}` list, which can contain both web URLs and local file paths. The content from these guidelines should be incorporated with the current file content and project requirements.
