@@ -9,7 +9,7 @@ from loguru import logger
 
 # Define constants
 MAX_ITERATIONS = 40  # Maximum number of iterations to perform
-TIMEOUT = 5*60 #seconds
+TIMEOUT = 25*60 #seconds
 # Configure logger
 logger.add("auto_inserter.log", rotation="10 MB", level="INFO")
 
@@ -52,49 +52,49 @@ class KeyboardAutomation:
             
             # vs code
             #
-            self.press_combination(Key.ctrl, 'a') # select text
-            time.sleep(1)  # 1 second delay
+            # self.press_combination(Key.ctrl, 'a') # select text
+            # time.sleep(1)  # 1 second delay
+            #
+            # text = "Continue executing the current task if it exists or do tasks on the dartboard AutoPrompter/HardTasks iteratively until no uncompleted tasks left. Use build_run_rules.instructions.md , general.instructions.md and product_requirements_design.instructions.md files."
+            # logger.info(f"Typing text: {text}")
+            # self.type_text(text)
+            # time.sleep(1)  # 1 second delay
+            #
+            # logger.info("Pressing Enter")
+            # self.press_key(Key.enter)
+            # time.sleep(1)  # 1 second delay
 
-            text = "Continue executing the current task if it exists or do tasks on the dartboard AutoPrompter/HardTasks iteratively until no uncompleted tasks left. Use build_run_rules.instructions.md , general.instructions.md and product_requirements_design.instructions.md files."
+
+            # cursor
+
+            logger.info("Pressing Escape")
+            self.press_key(Key.esc)
+            time.sleep(3)  # 1 second delay
+
+            # logger.info("Pressing Alt+Ctrl+i")
+            self.press_combination(Key.ctrl, 'l')
+            time.sleep(5)  # 1 second delay
+
+
+            self.press_combination(Key.shift, Key.home) # select text
+            time.sleep(1)
+
+            # Type the specified text
+            text = "Continue executing the current task if it exists or do tasks on the dartboard recursively until no uncompleted tasks left. Use build_run_rules , general , product_requirements_design .mdc rules and instructions.md files."
             logger.info(f"Typing text: {text}")
             self.type_text(text)
-            time.sleep(1)  # 1 second delay
-
+            time.sleep(5)  # 1 second delay
+            # Press Escape again
             logger.info("Pressing Enter")
             self.press_key(Key.enter)
             time.sleep(1)  # 1 second delay
 
 
-            # cursor
-
-            # logger.info("Pressing Escape")
-            # self.press_key(Key.esc)
-            # time.sleep(3)  # 1 second delay
-            #
-            # # logger.info("Pressing Alt+Ctrl+i")
-            # self.press_combination(Key.ctrl, 'l')
-            # time.sleep(5)  # 1 second delay
-            #
-            #
-            # self.press_combination(Key.shift, Key.home) # select text
-            # time.sleep(1)
-            #
-            # # Type the specified text
-            # text = "Continue executing the current task if it exists or do tasks on the dartboard recursively until no uncompleted tasks left. Use all crsor rules files"
-            # logger.info(f"Typing text: {text}")
-            # self.type_text(text)
-            # time.sleep(5)  # 1 second delay
-            # # Press Escape again
-            # logger.info("Pressing Enter")
-            # self.press_key(Key.enter)
-            # time.sleep(1)  # 1 second delay
-            #
-            #
-            # # Press Escape again
-            # logger.info("Pressing Escape")
-            # self.press_key(Key.esc)
-# #
-#             logger.info("Task sequence completed successfully")
+            # Press Escape again
+            logger.info("Pressing Escape")
+            self.press_key(Key.esc)
+#
+            logger.info("Task sequence completed successfully")
             
         except Exception as e:
             logger.error(f"Error executing task sequence: {e}")

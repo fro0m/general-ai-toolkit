@@ -18,6 +18,13 @@ For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{var
 4. **Document assumptions**: When making changes, note what version of the file you're working with
 5. **No backup files**: Do not create backup copies (.bak, .backup, .old) of files during editing operations - use version control for file history management
 
+#### Submodules and External Projects (CRITICAL RESTRICTION)
+**NEVER modify files in submodules or external projects**. This includes:
+- Git submodules (typically found in subdirectories that are separate repositories)
+- Third-party libraries and dependencies (e.g., files in `external/`, `third_party/`, `vendor/`, `lib/`, `dependencies/` directories)
+- Downloaded packages and frameworks (e.g., Qt libraries, CMake modules, package manager dependencies)
+- Any files that are not part of the main project's source code
+
 #### Example File Modification Workflow:
 ```bash
 # Step-by-step process for AI agents:
