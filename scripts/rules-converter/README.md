@@ -1,12 +1,20 @@
 # Rules Converter
 
-A simple Python application that converts Cursor IDE rules MDC files into VS Code instruction files.
+A Python application that converts Cursor IDE rules MDC files into both VS Code instruction files and Roo Code rules files.
 
-## File Format
+## Output Formats
 
-This converter transforms Cursor IDE rules MDC files into VS Code instruction files (.instructions.md) as described in the [VS Code Copilot Customization documentation](https://code.visualstudio.com/docs/copilot/copilot-customization#_instruction-files). 
+This converter transforms Cursor IDE rules MDC files into two different formats:
 
-VS Code instruction files are plain text files that provide guidance to Copilot. The converter preserves the entire content of the MDC file as-is and saves it as a .instructions.md file in the appropriate location.
+1. **VS Code instruction files** (.instructions.md) - Compatible with VS Code Copilot as described in the [VS Code Copilot Customization documentation](https://code.visualstudio.com/docs/copilot/copilot-customization#_instruction-files)
+2. **Roo Code rules files** (.md) - Compatible with Roo Code custom instructions as described in the [Roo Code Custom Instructions documentation](https://docs.roocode.com/features/custom-instructions/)
+
+### Output Directory Structure
+
+When converting, the tool creates files in both formats:
+
+- **VS Code**: `.github/instructions/` directory with `.instructions.md` files
+- **Roo Code**: `.roo/rules/` directory with `.md` files
 
 ## Installation
 
@@ -44,9 +52,9 @@ poetry run rules-converter path/to/directory -o path/to/output
 ```
 
 When converting a directory, the tool will:
-- Convert `.mdc` files to VS Code instruction files (`.instructions.md`) and place them in the `.github/instructions/` directory
-- Copy all non-`.mdc` files from the source directory to the output directory, preserving the directory structure
-- Maintain the directory structure inside the `.github/instructions` directory
+- Convert `.mdc` files to both VS Code instruction files (`.instructions.md`) in `.github/instructions/` and Roo Code rules files (`.md`) in `.roo/rules/`
+- Copy all non-`.mdc` files from the source directory to the output directory (if output directory is specified), preserving the directory structure
+- Maintain the directory structure inside both the `.github/instructions` and `.roo/rules` directories
 
 ### Help
 

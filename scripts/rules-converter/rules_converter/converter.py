@@ -129,16 +129,108 @@ def save_vscode_instructions(instructions_content: str, output_path: str) -> Non
         f.write(instructions_content)
 
 
-def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> str:
+def convert_to_roo_instructions(mdc_content: str) -> str:
     """
-    Convert a single MDC file to VS Code instructions format.
+    Convert MDC content to Roo Code instructions format.
+    Roo Code instructions are plain text/markdown files without frontmatter.
+    
+    Args:
+        mdc_content: Content from the MDC file
+        
+    Returns:
+        Content formatted for Roo Code instruction files
+    """
+    extracted_description: Optional[str] = None
+    main_body_content_str: str = ""
+
+    try:
+        # Attempt to parse as JSON first
+        data = json.loads(mdc_content)
+        extracted_description = data.get("description")
+        main_body_content_str = data.get("content", "")
+    except json.JSONDecodeError:
+        # JSON parsing failed, attempt to parse as YAML-like with frontmatter
+        lines = mdc_content.splitlines()
+        
+        if lines and lines[0] == "---":
+            frontmatter_lines: List[str] = []
+            body_lines: List[str] = []
+            in_frontmatter = True
+            
+            # Start scanning from the line *after* the first '---'
+            for i in range(1, len(lines)):
+                if in_frontmatter and lines[i] == "---":
+                    in_frontmatter = False # Closing '---' found
+                    continue # Don't add this '---' to body or frontmatter
+                
+                if in_frontmatter:
+                    frontmatter_lines.append(lines[i])
+                else:
+                    body_lines.append(lines[i])
+            
+            if in_frontmatter: 
+                # Closing '---' was not found, but we started with '---'.
+                # This is malformed. Treat everything after the first '---' as body for robustness.
+                main_body_content_str = "\n".join(frontmatter_lines)
+            else:
+                 # Properly closed frontmatter was found, parse it
+                for fm_line in frontmatter_lines:
+                    if ":" in fm_line:
+                        key, val = fm_line.split(":", 1)
+                        key = key.strip()
+                        val = val.strip() # Raw value
+                        if key == "description":
+                            # Basic unquoting for description
+                            if (val.startswith("'") and val.endswith("'")) or \
+                               (val.startswith('"') and val.endswith('"')):
+                                extracted_description = val[1:-1]
+                            else:
+                                extracted_description = val
+                main_body_content_str = "\n".join(body_lines)
+
+        else:
+            # No leading '---', so assume the entire content is the main body
+            main_body_content_str = mdc_content
+
+    # Construct the output for Roo Code format (plain text/markdown)
+    output_parts: List[str] = []
+    
+    # Add description as a header if available
+    if extracted_description:
+        output_parts.append(f"# {extracted_description}")
+        output_parts.append("")
+    
+    # Add the main body content
+    output_parts.append(main_body_content_str.strip())
+            
+    return "\n".join(output_parts)
+
+
+def save_roo_instructions(instructions_content: str, output_path: str) -> None:
+    """
+    Save Roo Code instructions to a file.
+    
+    Args:
+        instructions_content: Content for the instructions file
+        output_path: Path to save the instructions file
+    """
+    # Create parent directories if they don't exist
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(instructions_content)
+
+
+def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> Tuple[str, str]:
+    """
+    Convert a single MDC file to VS Code instructions format and Roo Code format.
     
     Args:
         input_path_str: Path to the input MDC file
         output_dir_str: Directory to save the output file (optional)
         
     Returns:
-        Path to the generated VS Code instructions file
+        Tuple of (VS Code instructions file path, Roo Code instructions file path)
     """
     input_path_abs = os.path.abspath(input_path_str)
     input_file_name = os.path.basename(input_path_abs)
@@ -146,11 +238,12 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> s
 
     try:
         mdc_content = parse_mdc_file(input_path_abs)
-        instructions_content = convert_to_vscode_instructions(mdc_content)
+        vscode_instructions_content = convert_to_vscode_instructions(mdc_content)
+        roo_instructions_content = convert_to_roo_instructions(mdc_content)
         
-        base_for_github_output: str
+        base_for_output: str
         if output_dir_str:
-            base_for_github_output = os.path.abspath(output_dir_str)
+            base_for_output = os.path.abspath(output_dir_str)
         else:
             # Check if input is inside .cursor/rules structure
             path_parts = Path(input_file_dir).parts
@@ -159,24 +252,27 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> s
                 cursor_index = path_parts.index(".cursor")
                 if rules_index == cursor_index + 1 and rules_index == len(path_parts) -1 : # .cursor/rules is the immediate parent
                      # Go up two levels from 'rules' to get parent of '.cursor'
-                    base_for_github_output = str(Path(input_file_dir).parent.parent)
+                    base_for_output = str(Path(input_file_dir).parent.parent)
                 else: # .cursor/rules/some/sub/dir
                     # Find the parent of .cursor
-                    base_for_github_output = str(Path(input_file_dir).parents[len(path_parts) - 1 - cursor_index -1])
+                    base_for_output = str(Path(input_file_dir).parents[len(path_parts) - 1 - cursor_index -1])
 
             except ValueError: # .cursor or rules not in path
-                base_for_github_output = input_file_dir
+                base_for_output = input_file_dir
         
-        # Output structure: base_for_github_output/.github/instructions/original_filename.instructions.md
-        # For single file conversion, we don't try to replicate sub-paths from within .cursor/rules
-        github_instructions_dir = os.path.join(base_for_github_output, ".github", "instructions")
+        # VS Code output structure: base_for_output/.github/instructions/original_filename.instructions.md
+        github_instructions_dir = os.path.join(base_for_output, ".github", "instructions")
+        vscode_output_filename = os.path.splitext(input_file_name)[0] + ".instructions.md"
+        vscode_output_path = os.path.join(github_instructions_dir, vscode_output_filename)
+        save_vscode_instructions(vscode_instructions_content, vscode_output_path)
         
-        output_filename = os.path.splitext(input_file_name)[0] + ".instructions.md"
-        output_path = os.path.join(github_instructions_dir, output_filename)
+        # Roo Code output structure: base_for_output/.roo/rules/original_filename.md
+        roo_rules_dir = os.path.join(base_for_output, ".roo", "rules")
+        roo_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        roo_output_path = os.path.join(roo_rules_dir, roo_output_filename)
+        save_roo_instructions(roo_instructions_content, roo_output_path)
         
-        save_vscode_instructions(instructions_content, output_path)
-        
-        return output_path
+        return vscode_output_path, roo_output_path
     except Exception as e:
         print(f"Error converting {input_path_abs}: {str(e)}")
         raise
@@ -210,7 +306,7 @@ def copy_file(input_path: str, output_dir: str) -> str:
     return output_path
 
 
-def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) -> Tuple[List[str], List[str]]:
+def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) -> Tuple[List[str], List[str], List[str], List[str]]:
     """
     Convert all MDC files in a directory and its subdirectories.
     If the input directory is not .cursor/rules, it will specifically look for .cursor/rules within it.
@@ -222,10 +318,11 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
         output_dir_str: Directory to save output files (optional).
         
     Returns:
-        Tuple containing (list of converted file paths, list of copied file paths)
+        Tuple containing (list of VS Code converted file paths, list of Roo Code converted file paths, list of copied file paths, list of other copied files)
     """
     input_dir_abs = os.path.abspath(input_dir_str)
-    converted_files = []
+    vscode_converted_files = []
+    roo_converted_files = []
     copied_files = []
 
     actual_mdc_search_root: str
@@ -243,36 +340,42 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
 
     if not os.path.isdir(actual_mdc_search_root):
         print(f"Info: MDC rule directory not found at {actual_mdc_search_root}. No .mdc files will be converted from this path.")
-        return [], []
+        return [], [], [], []
 
-    base_for_github_output: str
+    base_for_output: str
     if output_dir_str:
-        base_for_github_output = os.path.abspath(output_dir_str)
+        base_for_output = os.path.abspath(output_dir_str)
     else:
-        base_for_github_output = project_root_for_no_output_dir
+        base_for_output = project_root_for_no_output_dir
     
     for root, _, files in os.walk(actual_mdc_search_root):
         for file in files:
             input_path_abs = os.path.join(root, file)
             
-            # rel_path is relative to actual_mdc_search_root to preserve structure within .github/instructions
+            # rel_path is relative to actual_mdc_search_root to preserve structure within .github/instructions and .roo/rules
             rel_path_from_search_root = os.path.relpath(root, actual_mdc_search_root)
             if rel_path_from_search_root == '.':
                 rel_path_from_search_root = ''
                 
             if file.endswith(".mdc"):
                 mdc_content = parse_mdc_file(input_path_abs)
-                instructions_content = convert_to_vscode_instructions(mdc_content)
+                vscode_instructions_content = convert_to_vscode_instructions(mdc_content)
+                roo_instructions_content = convert_to_roo_instructions(mdc_content)
                 
-                # Determine output path for the .instructions.md file
-                # base_for_github_output / .github / instructions / rel_path_from_search_root / filename.instructions.md
-                output_instructions_subdir = os.path.join(base_for_github_output, ".github", "instructions", rel_path_from_search_root)
+                # Determine output paths
+                # VS Code: base_for_output / .github / instructions / rel_path_from_search_root / filename.instructions.md
+                vscode_output_instructions_subdir = os.path.join(base_for_output, ".github", "instructions", rel_path_from_search_root)
+                vscode_output_filename = os.path.splitext(os.path.basename(input_path_abs))[0] + ".instructions.md"
+                vscode_output_path = os.path.join(vscode_output_instructions_subdir, vscode_output_filename)
+                save_vscode_instructions(vscode_instructions_content, vscode_output_path)
+                vscode_converted_files.append(vscode_output_path)
                 
-                output_filename = os.path.splitext(os.path.basename(input_path_abs))[0] + ".instructions.md"
-                output_path = os.path.join(output_instructions_subdir, output_filename)
-                
-                save_vscode_instructions(instructions_content, output_path)
-                converted_files.append(output_path)
+                # Roo Code: base_for_output / .roo / rules / rel_path_from_search_root / filename.md
+                roo_output_rules_subdir = os.path.join(base_for_output, ".roo", "rules", rel_path_from_search_root)
+                roo_output_filename = os.path.splitext(os.path.basename(input_path_abs))[0] + ".md"
+                roo_output_path = os.path.join(roo_output_rules_subdir, roo_output_filename)
+                save_roo_instructions(roo_instructions_content, roo_output_path)
+                roo_converted_files.append(roo_output_path)
             
             elif output_dir_str: # Only copy non-MDC files if an output_dir_str is specified
                 # Non-MDC files are copied relative to output_dir_str, maintaining structure from actual_mdc_search_root
@@ -282,4 +385,4 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 output_path = copy_file(input_path_abs, file_output_dir_specific)
                 copied_files.append(output_path)
     
-    return converted_files, copied_files
+    return vscode_converted_files, roo_converted_files, copied_files, []
