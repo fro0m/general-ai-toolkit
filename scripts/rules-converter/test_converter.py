@@ -20,13 +20,15 @@ def main():
         sys.exit(1)
     
     print("Converting single file...")
-    vscode_output_file, roo_output_file = convert_file(sample_file)
+    vscode_output_file, roo_output_file, windsurf_output_file = convert_file(sample_file)
     print(f"Converted {sample_file}:")
     print(f"  - VS Code: {vscode_output_file}")
     print(f"  - Roo Code: {roo_output_file}")
+    print(f"  - Windsurf: {windsurf_output_file}")
     
     # Create a test directory with multiple MDC files
-    test_dir = os.path.join(script_dir, 'test_mdc_files')
+    test_project_dir = os.path.join(script_dir, 'test_project_programmatic')
+    test_dir = os.path.join(test_project_dir, '.cursor', 'rules')
     os.makedirs(test_dir, exist_ok=True)
     
     # Create a few test MDC files
@@ -68,7 +70,7 @@ def main():
     output_dir = os.path.join(script_dir, 'output_test_programmatic') # Changed to avoid conflict with gitignored 'output'
     os.makedirs(output_dir, exist_ok=True) # Ensure output_dir exists
     
-    vscode_converted_paths, roo_converted_paths, copied_paths, _ = convert_directory(test_dir, output_dir)
+    vscode_converted_paths, roo_converted_paths, windsurf_converted_paths, copied_paths = convert_directory(test_project_dir, output_dir)
     
     total_processed = len(vscode_converted_paths) + len(copied_paths)
     print(f"Processed {total_processed} files to {output_dir}:")
@@ -79,6 +81,10 @@ def main():
     if roo_converted_paths:
         print(f"  Converted {len(roo_converted_paths)} '.mdc' files to Roo Code rules:")
         for file_path in roo_converted_paths:
+            print(f"    - {file_path}")
+    if windsurf_converted_paths:
+        print(f"  Converted {len(windsurf_converted_paths)} '.mdc' files to Windsurf rules:")
+        for file_path in windsurf_converted_paths:
             print(f"    - {file_path}")
     if copied_paths:
         print(f"  Copied {len(copied_paths)} other files:")

@@ -22,7 +22,7 @@ from .converter import convert_directory, convert_file
 )
 def main(input_path, output_dir, recursive):
     """
-    Convert Cursor IDE rules MDC files to VS Code instruction files and Roo Code rules files.
+    Convert Cursor IDE rules MDC files to VS Code instruction files, Roo Code rules files, and Windsurf rules files.
     Also copies non-MDC files from the source directory to the output directory.
     
     INPUT_PATH can be either a single file or a directory.
@@ -51,28 +51,32 @@ def main(input_path, output_dir, recursive):
                 if not click.confirm("Continue anyway?"):
                     return
             
-            vscode_output_path, roo_output_path = convert_file(input_path, output_dir)
+            vscode_output_path, roo_output_path, windsurf_output_path = convert_file(input_path, output_dir)
             click.echo(f"Converted {input_path}:")
             click.echo(f"  - VS Code: {vscode_output_path}")
             click.echo(f"  - Roo Code: {roo_output_path}")
+            click.echo(f"  - Windsurf: {windsurf_output_path}")
         
         elif os.path.isdir(input_path):
             if recursive:
-                vscode_converted_files, roo_converted_files, copied_files, _ = convert_directory(input_path, output_dir)
+                vscode_converted_files, roo_converted_files, windsurf_converted_files, copied_files = convert_directory(input_path, output_dir)
                 total_processed = len(vscode_converted_files) + len(copied_files)
                 
                 click.echo(f"Processed {total_processed} files from {input_path}")
                 click.echo(f"- Converted {len(vscode_converted_files)} .mdc files")
                 click.echo(f"  - VS Code instructions: {len(vscode_converted_files)} files")
                 click.echo(f"  - Roo Code rules: {len(roo_converted_files)} files")
+                click.echo(f"  - Windsurf rules: {len(windsurf_converted_files)} files")
                 click.echo(f"- Copied {len(copied_files)} other files")
                 
-                if vscode_converted_files or roo_converted_files:
+                if vscode_converted_files or roo_converted_files or windsurf_converted_files:
                     click.echo("\nGenerated files:")
                     for file in vscode_converted_files:
                         click.echo(f"  - VS Code: {file}")
                     for file in roo_converted_files:
                         click.echo(f"  - Roo Code: {file}")
+                    for file in windsurf_converted_files:
+                        click.echo(f"  - Windsurf: {file}")
                     for file in copied_files:
                         click.echo(f"  - Copied: {file}")
                 else:

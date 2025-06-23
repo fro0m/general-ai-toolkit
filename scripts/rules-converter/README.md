@@ -1,20 +1,33 @@
 # Rules Converter
 
-A Python application that converts Cursor IDE rules MDC files into both VS Code instruction files and Roo Code rules files.
+A Python application that converts Cursor IDE rules MDC files into VS Code instruction files, Roo Code rules files, and Windsurf rules files.
 
 ## Output Formats
 
-This converter transforms Cursor IDE rules MDC files into two different formats:
+This converter transforms Cursor IDE rules MDC files into three different formats:
 
 1. **VS Code instruction files** (.instructions.md) - Compatible with VS Code Copilot as described in the [VS Code Copilot Customization documentation](https://code.visualstudio.com/docs/copilot/copilot-customization#_instruction-files)
 2. **Roo Code rules files** (.md) - Compatible with Roo Code custom instructions as described in the [Roo Code Custom Instructions documentation](https://docs.roocode.com/features/custom-instructions/)
+3. **Windsurf rules files** (.md) - Compatible with Windsurf AI editor with YAML frontmatter format
+
+#### Windsurf Format Details
+
+Windsurf rules files are generated with the following YAML frontmatter:
+```yaml
+---
+trigger: always_on
+description: [extracted from original MDC file]
+globs: **/*
+---
+```
 
 ### Output Directory Structure
 
-When converting, the tool creates files in both formats:
+When converting, the tool creates files in all three formats:
 
 - **VS Code**: `.github/instructions/` directory with `.instructions.md` files
-- **Roo Code**: `.roo/rules/` directory with `.md` files
+- **Roo Code**: `.roo/rules/` directory with `.md` files  
+- **Windsurf**: `.windsurf/rules/` directory with `.md` files
 
 ## Installation
 
@@ -52,9 +65,9 @@ poetry run rules-converter path/to/directory -o path/to/output
 ```
 
 When converting a directory, the tool will:
-- Convert `.mdc` files to both VS Code instruction files (`.instructions.md`) in `.github/instructions/` and Roo Code rules files (`.md`) in `.roo/rules/`
+- Convert `.mdc` files to VS Code instruction files (`.instructions.md`) in `.github/instructions/`, Roo Code rules files (`.md`) in `.roo/rules/`, and Windsurf rules files (`.md`) in `.windsurf/rules/`
 - Copy all non-`.mdc` files from the source directory to the output directory (if output directory is specified), preserving the directory structure
-- Maintain the directory structure inside both the `.github/instructions` and `.roo/rules` directories
+- Maintain the directory structure inside the `.github/instructions`, `.roo/rules`, and `.windsurf/rules` directories
 
 ### Help
 
