@@ -20,7 +20,11 @@ Follow this workflow for managing tasks:
     *   If the Dart workspace or any tasks are not found initially, halt execution. Do not create new tasks or alter existing task descriptions.
 
 2.  **Execute Task:**
+    *   Before starting the task execution:
+        - Update the task status to "Doing"
+        - Add a new line to the task description with the current timestamp in the format: "Execution started at: YYYY-MM-DD Thh:mm"
     *   Perform the necessary actions to complete the retrieved task. The primary focus should be on making meaningful and functional edits. Do not generate report files about the task execution.
+    *   If the task execution is interrupted or fails, ensure the task remains in "Doing" status with the start time intact for the timeout mechanism.
 
 3.  **Post-Task Routine (Applicable for Code Editing Tasks):**
     *   Execute the following actions automatically and without user prompts. **Each step must be completed successfully before proceeding to the next step. If any issues arise during any step, they must be resolved before continuing to the subsequent step:**
