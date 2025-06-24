@@ -16,7 +16,13 @@ For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{var
    - Adapt your modifications to work with the current file state
    - Inform the user about any conflicts or adjustments made
 4. **Document assumptions**: When making changes, note what version of the file you're working with
-5. **No backup files**: Do not create backup copies (.bak, .backup, .old) of files during editing operations - use version control for file history management
+5. **Direct File Editing Only**:
+    - All edits must be made directly to the target files
+    - Never create backup copies (e.g., .bak, .backup, .old, .tmp, ~, .swp, etc.)
+    - Do not create legacy versions of files (e.g., file_v2.py, file.old.js)
+    - Do not create temporary files with modified content
+    - Use version control (e.g., Git) for tracking changes instead of creating file copies
+    - If you need to reference previous versions, use the version control history, not file copies
 
 #### Submodules and External Projects (CRITICAL RESTRICTION)
 **NEVER modify files in submodules or external projects**. This includes:
