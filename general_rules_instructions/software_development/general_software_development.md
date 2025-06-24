@@ -36,7 +36,14 @@ For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{var
 # 6. Document the changes made and reasoning
 ```
 
-### 2. Product Requirements and Architecture Compliance
+### 2. Task Management and Execution
+- **Task Status Handling**:
+  - When a task is started, update its status to "Doing" and record the start time in the task description using the format: "Execution started at: YYYY-MM-DD Thh:mm"
+  - If a task is in "Doing" status and has been worked on for less than 2 hours, skip it as it's likely being handled by another AI agent
+  - Only pick up tasks that are either in "To-do" status or have been in "Doing" status for more than 2 hours
+  - This prevents multiple agents from working on the same task simultaneously and ensures tasks don't get stuck indefinitely
+
+### 3. Product Requirements and Architecture Compliance
 - The product must satisfy `{ApplicationName}_product_requirements.md` and `{ApplicationName}_architecture.md` files
 - `{ApplicationName}_product_requirements.md` has **higher priority** than `{ApplicationName}_architecture.md`
 - Before creating any new classes or major components, update the `{ApplicationName}_architecture.md` document to reflect these planned changes
