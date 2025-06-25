@@ -229,6 +229,98 @@ def save_windsurf_instructions(instructions_content: str, output_path: str) -> N
         f.write(instructions_content)
 
 
+def convert_to_cline_instructions(mdc_content: str) -> str:
+    """
+    Convert MDC content to Cline rules format.
+    Cline rules are plain markdown files without frontmatter, similar to Roo Code format.
+    
+    Args:
+        mdc_content: Content from the MDC file
+        
+    Returns:
+        Content formatted for Cline rules files
+    """
+    extracted_description: Optional[str] = None
+    main_body_content_str: str = ""
+
+    try:
+        # Attempt to parse as JSON first
+        data = json.loads(mdc_content)
+        extracted_description = data.get("description")
+        main_body_content_str = data.get("content", "")
+    except json.JSONDecodeError:
+        # JSON parsing failed, attempt to parse as YAML-like with frontmatter
+        lines = mdc_content.splitlines()
+        
+        if lines and lines[0] == "---":
+            frontmatter_lines: List[str] = []
+            body_lines: List[str] = []
+            in_frontmatter = True
+            
+            # Start scanning from the line *after* the first '---'
+            for i in range(1, len(lines)):
+                if in_frontmatter and lines[i] == "---":
+                    in_frontmatter = False # Closing '---' found
+                    continue # Don't add this '---' to body or frontmatter
+                
+                if in_frontmatter:
+                    frontmatter_lines.append(lines[i])
+                else:
+                    body_lines.append(lines[i])
+            
+            if in_frontmatter: 
+                # Closing '---' was not found, but we started with '---'.
+                # This is malformed. Treat everything after the first '---' as body for robustness.
+                main_body_content_str = "\n".join(frontmatter_lines)
+            else:
+                 # Properly closed frontmatter was found, parse it
+                for fm_line in frontmatter_lines:
+                    if ":" in fm_line:
+                        key, val = fm_line.split(":", 1)
+                        key = key.strip()
+                        val = val.strip() # Raw value
+                        if key == "description":
+                            # Basic unquoting for description
+                            if (val.startswith("'") and val.endswith("'")) or \
+                               (val.startswith('"') and val.endswith('"')):
+                                extracted_description = val[1:-1]
+                            else:
+                                extracted_description = val
+                main_body_content_str = "\n".join(body_lines)
+
+        else:
+            # No leading '---', so assume the entire content is the main body
+            main_body_content_str = mdc_content
+
+    # Construct the output for Cline format (plain text/markdown like Roo Code)
+    output_parts: List[str] = []
+    
+    # Add description as a header if available
+    if extracted_description:
+        output_parts.append(f"# {extracted_description}")
+        output_parts.append("")  # Add blank line after header
+    
+    # Add the main body content
+    output_parts.append(main_body_content_str.strip())
+    
+    return "\n".join(output_parts)
+
+
+def save_cline_instructions(instructions_content: str, output_path: str) -> None:
+    """
+    Save Cline instructions to a file.
+    
+    Args:
+        instructions_content: Content for the instructions file
+        output_path: Path to save the instructions file
+    """
+    # Create parent directories if they don't exist
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(instructions_content)
+
+
 def convert_to_roo_instructions(mdc_content: str) -> str:
     """
     Convert MDC content to Roo Code instructions format.
@@ -321,16 +413,16 @@ def save_roo_instructions(instructions_content: str, output_path: str) -> None:
         f.write(instructions_content)
 
 
-def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> Tuple[str, str, str]:
+def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> Tuple[str, str, str, str]:
     """
-    Convert a single MDC file to VS Code instructions format, Roo Code format, and Windsurf format.
+    Convert a single MDC file to VS Code instructions format, Roo Code format, Windsurf format, and Cline format.
     
     Args:
         input_path_str: Path to the input MDC file
         output_dir_str: Directory to save the output file (optional)
         
     Returns:
-        Tuple of (VS Code instructions file path, Roo Code instructions file path, Windsurf instructions file path)
+        Tuple of (VS Code instructions file path, Roo Code instructions file path, Windsurf instructions file path, Cline instructions file path)
     """
     input_path_abs = os.path.abspath(input_path_str)
     input_file_name = os.path.basename(input_path_abs)
@@ -341,6 +433,7 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         vscode_instructions_content = convert_to_vscode_instructions(mdc_content)
         roo_instructions_content = convert_to_roo_instructions(mdc_content)
         windsurf_instructions_content = convert_to_windsurf_instructions(mdc_content)
+        cline_instructions_content = convert_to_cline_instructions(mdc_content)
         
         base_for_output: str
         if output_dir_str:
@@ -379,7 +472,13 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         windsurf_output_path = os.path.join(windsurf_rules_dir, windsurf_output_filename)
         save_windsurf_instructions(windsurf_instructions_content, windsurf_output_path)
         
-        return vscode_output_path, roo_output_path, windsurf_output_path
+        # Cline output structure: base_for_output/.clinerules/original_filename.md
+        cline_rules_dir = os.path.join(base_for_output, ".clinerules")
+        cline_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        cline_output_path = os.path.join(cline_rules_dir, cline_output_filename)
+        save_cline_instructions(cline_instructions_content, cline_output_path)
+        
+        return vscode_output_path, roo_output_path, windsurf_output_path, cline_output_path
     except Exception as e:
         print(f"Error converting {input_path_abs}: {str(e)}")
         raise
@@ -413,7 +512,7 @@ def copy_file(input_path: str, output_dir: str) -> str:
     return output_path
 
 
-def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) -> Tuple[List[str], List[str], List[str], List[str]]:
+def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) -> Tuple[List[str], List[str], List[str], List[str], List[str]]:
     """
     Convert all MDC files in a directory and its subdirectories.
     If the input directory is not .cursor/rules, it will specifically look for .cursor/rules within it.
@@ -425,12 +524,13 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
         output_dir_str: Directory to save output files (optional).
         
     Returns:
-        Tuple containing (list of VS Code converted file paths, list of Roo Code converted file paths, list of Windsurf converted file paths, list of copied file paths)
+        Tuple containing (list of VS Code converted file paths, list of Roo Code converted file paths, list of Windsurf converted file paths, list of Cline converted file paths, list of copied file paths)
     """
     input_dir_abs = os.path.abspath(input_dir_str)
     vscode_converted_files = []
     roo_converted_files = []
     windsurf_converted_files = []
+    cline_converted_files = []
     copied_files = []
 
     actual_mdc_search_root: str
@@ -448,7 +548,7 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
 
     if not os.path.isdir(actual_mdc_search_root):
         print(f"Info: MDC rule directory not found at {actual_mdc_search_root}. No .mdc files will be converted from this path.")
-        return [], [], [], []
+        return [], [], [], [], []
 
     base_for_output: str
     if output_dir_str:
@@ -470,6 +570,7 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 vscode_instructions_content = convert_to_vscode_instructions(mdc_content)
                 roo_instructions_content = convert_to_roo_instructions(mdc_content)
                 windsurf_instructions_content = convert_to_windsurf_instructions(mdc_content)
+                cline_instructions_content = convert_to_cline_instructions(mdc_content)
                 
                 # Determine output paths
                 # VS Code: base_for_output / .github / instructions / rel_path_from_search_root / filename.instructions.md
@@ -492,6 +593,13 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 windsurf_output_path = os.path.join(windsurf_output_rules_subdir, windsurf_output_filename)
                 save_windsurf_instructions(windsurf_instructions_content, windsurf_output_path)
                 windsurf_converted_files.append(windsurf_output_path)
+                
+                # Cline: base_for_output / .clinerules / rel_path_from_search_root / filename.md
+                cline_output_rules_subdir = os.path.join(base_for_output, ".clinerules", rel_path_from_search_root)
+                cline_output_filename = os.path.splitext(os.path.basename(input_path_abs))[0] + ".md"
+                cline_output_path = os.path.join(cline_output_rules_subdir, cline_output_filename)
+                save_cline_instructions(cline_instructions_content, cline_output_path)
+                cline_converted_files.append(cline_output_path)
             
             elif output_dir_str: # Only copy non-MDC files if an output_dir_str is specified
                 # Non-MDC files are copied relative to output_dir_str, maintaining structure from actual_mdc_search_root
@@ -501,4 +609,4 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 output_path = copy_file(input_path_abs, file_output_dir_specific)
                 copied_files.append(output_path)
     
-    return vscode_converted_files, roo_converted_files, windsurf_converted_files, copied_files
+    return vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, copied_files

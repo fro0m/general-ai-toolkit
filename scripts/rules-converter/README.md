@@ -1,14 +1,15 @@
 # Rules Converter
 
-A Python application that converts Cursor IDE rules MDC files into VS Code instruction files, Roo Code rules files, and Windsurf rules files.
+A Python application that converts Cursor IDE rules MDC files into VS Code instruction files, Roo Code rules files, Windsurf rules files, and Cline rules files.
 
 ## Output Formats
 
-This converter transforms Cursor IDE rules MDC files into three different formats:
+This converter transforms Cursor IDE rules MDC files into four different formats:
 
 1. **VS Code instruction files** (.instructions.md) - Compatible with VS Code Copilot as described in the [VS Code Copilot Customization documentation](https://code.visualstudio.com/docs/copilot/copilot-customization#_instruction-files)
 2. **Roo Code rules files** (.md) - Compatible with Roo Code custom instructions as described in the [Roo Code Custom Instructions documentation](https://docs.roocode.com/features/custom-instructions/)
 3. **Windsurf rules files** (.md) - Compatible with Windsurf AI editor with YAML frontmatter format
+4. **Cline rules files** (.md) - Compatible with Cline AI assistant as plain markdown files
 
 #### Windsurf Format Details
 
@@ -21,13 +22,18 @@ globs: **/*
 ---
 ```
 
+#### Cline Format Details
+
+Cline rules files are plain markdown files without frontmatter, similar to Roo Code format but stored in the `.clinerules/` directory. Cline automatically processes all markdown files in this directory.
+
 ### Output Directory Structure
 
-When converting, the tool creates files in all three formats:
+When converting, the tool creates files in all four formats:
 
 - **VS Code**: `.github/instructions/` directory with `.instructions.md` files
 - **Roo Code**: `.roo/rules/` directory with `.md` files  
 - **Windsurf**: `.windsurf/rules/` directory with `.md` files
+- **Cline**: `.clinerules/` directory with `.md` files
 
 ## Installation
 
@@ -65,9 +71,9 @@ poetry run rules-converter path/to/directory -o path/to/output
 ```
 
 When converting a directory, the tool will:
-- Convert `.mdc` files to VS Code instruction files (`.instructions.md`) in `.github/instructions/`, Roo Code rules files (`.md`) in `.roo/rules/`, and Windsurf rules files (`.md`) in `.windsurf/rules/`
+- Convert `.mdc` files to VS Code instruction files (`.instructions.md`) in `.github/instructions/`, Roo Code rules files (`.md`) in `.roo/rules/`, Windsurf rules files (`.md`) in `.windsurf/rules/`, and Cline rules files (`.md`) in `.clinerules/`
 - Copy all non-`.mdc` files from the source directory to the output directory (if output directory is specified), preserving the directory structure
-- Maintain the directory structure inside the `.github/instructions`, `.roo/rules`, and `.windsurf/rules` directories
+- Maintain the directory structure inside the `.github/instructions`, `.roo/rules`, `.windsurf/rules`, and `.clinerules` directories
 
 ### Help
 
