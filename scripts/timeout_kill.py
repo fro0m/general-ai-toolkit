@@ -5,6 +5,7 @@ import threading
 
 # Global flag to prevent duplicate crash reports
 _crash_report_generated = False
+_monitoring_active = False
 
 def export_crash_info(debugger, process, output_file="crash_report.txt", show_backtrace=True):
     """Export detailed backtrace and crash information to a text file."""
@@ -80,23 +81,40 @@ def exit_lldb(debugger):
         import sys
         sys.exit(0)
 
+def is_real_crash(thread):
+    """Determine if a thread stop is a real crash or just a trace/breakpoint."""
+    stop_reason = thread.GetStopReason()
+    
+    if stop_reason == lldb.eStopReasonSignal:
+        signal = thread.GetStopReasonDataAtIndex(0)
+        # Common crash signals
+        crash_signals = [11, 6, 4, 8, 3]  # SIGSEGV, SIGABRT, SIGILL, SIGFPE, SIGQUIT
+        return signal in crash_signals
+    elif stop_reason == lldb.eStopReasonException:
+        return True
+    elif stop_reason == lldb.eStopReasonTrace:
+        # Trace stops are usually from dynamic loading, not crashes
+        return False
+    elif stop_reason == lldb.eStopReasonBreakpoint:
+        return False
+    
+    return False
+
 def check_process_state(debugger, process):
     """Check if the process has already stopped or crashed."""
     process_state = process.GetState()
     
     if process_state == lldb.eStateStopped:
-        # Check if any thread stopped due to a signal (crash)
+        # Check if any thread stopped due to a real crash
         crashed = False
         for thread in process:
-            stop_reason = thread.GetStopReason()
-            
-            if stop_reason == lldb.eStopReasonSignal:
-                signal = thread.GetStopReasonDataAtIndex(0)
-                print(f"Process crashed with signal: {signal}")
-                crashed = True
-                break
-            elif stop_reason == lldb.eStopReasonException:
-                print("Process stopped due to exception")
+            if is_real_crash(thread):
+                stop_reason = thread.GetStopReason()
+                if stop_reason == lldb.eStopReasonSignal:
+                    signal = thread.GetStopReasonDataAtIndex(0)
+                    print(f"Process crashed with signal: {signal}")
+                else:
+                    print("Process stopped due to exception")
                 crashed = True
                 break
         
@@ -111,6 +129,13 @@ def check_process_state(debugger, process):
             exit_thread.daemon = True
             exit_thread.start()
             return True
+        else:
+            # Not a crash, continue execution
+            print("Process stopped (trace/breakpoint), continuing...")
+            result = process.Continue()
+            if not result.Success():
+                print(f"Failed to continue process: {result.GetError()}")
+            return False
     
     elif process_state == lldb.eStateExited:
         exit_lldb(debugger)
@@ -120,9 +145,17 @@ def check_process_state(debugger, process):
 
 def kill_if_timeout(debugger, process, timeout=60):
     """Monitor the process and kill it if it doesn't exit within the specified timeout."""
+    global _monitoring_active
+    
+    if _monitoring_active:
+        print("Monitoring already active, skipping duplicate setup")
+        return
+        
+    _monitoring_active = True
     
     # First check if process has already stopped/crashed
     if check_process_state(debugger, process):
+        _monitoring_active = False
         return
 
     listener = debugger.GetListener()
@@ -136,26 +169,35 @@ def kill_if_timeout(debugger, process, timeout=60):
         process_state = process.GetState()
 
         if process_state == lldb.eStateStopped:
-            # Check if stopped due to a signal
+            # Check if stopped due to a real crash
             crashed = False
             for thread in process:
-                stop_reason = thread.GetStopReason()
-                if stop_reason == lldb.eStopReasonSignal:
-                    signal = thread.GetStopReasonDataAtIndex(0)
-                    print(f"Process crashed with signal: {signal}")
-                    crashed = True
-                    break
-                elif stop_reason == lldb.eStopReasonException:
-                    print("Process stopped due to exception")
+                if is_real_crash(thread):
+                    stop_reason = thread.GetStopReason()
+                    if stop_reason == lldb.eStopReasonSignal:
+                        signal = thread.GetStopReasonDataAtIndex(0)
+                        print(f"Process crashed with signal: {signal}")
+                    else:
+                        print("Process stopped due to exception")
                     crashed = True
                     break
             
-            export_crash_info(debugger, process)
-            exit_lldb(debugger)
-            return
+            if crashed:
+                export_crash_info(debugger, process)
+                exit_lldb(debugger)
+                _monitoring_active = False
+                return
+            else:
+                # Continue execution for trace/breakpoint stops
+                print("Process stopped (trace/breakpoint), continuing...")
+                result = process.Continue()
+                if not result.Success():
+                    print(f"Failed to continue process: {result.GetError()}")
+                    break
             
         elif process_state == lldb.eStateExited:
             exit_lldb(debugger)
+            _monitoring_active = False
             return
             
         elif elapsed_time >= timeout:
@@ -187,6 +229,7 @@ def kill_if_timeout(debugger, process, timeout=60):
             else:
                 print(f"ERROR: Failed to terminate process: {result.GetError()}")
             exit_lldb(debugger)
+            _monitoring_active = False
             return
 
         # Wait for events with a longer timeout for efficiency
@@ -196,27 +239,38 @@ def kill_if_timeout(debugger, process, timeout=60):
                 new_state = lldb.SBProcess.GetStateFromEvent(event)
                 
                 if new_state == lldb.eStateStopped:
-                    # Check if stopped due to a signal
+                    # Check if stopped due to a real crash
                     crashed = False
                     for thread in process:
-                        stop_reason = thread.GetStopReason()
-                        if stop_reason == lldb.eStopReasonSignal:
-                            signal = thread.GetStopReasonDataAtIndex(0)
-                            print(f"Process crashed with signal: {signal}")
-                            crashed = True
-                            break
-                        elif stop_reason == lldb.eStopReasonException:
-                            print("Process stopped due to exception")
+                        if is_real_crash(thread):
+                            stop_reason = thread.GetStopReason()
+                            if stop_reason == lldb.eStopReasonSignal:
+                                signal = thread.GetStopReasonDataAtIndex(0)
+                                print(f"Process crashed with signal: {signal}")
+                            else:
+                                print("Process stopped due to exception")
                             crashed = True
                             break
                     
-                    export_crash_info(debugger, process)
-                    exit_lldb(debugger)
-                    return
+                    if crashed:
+                        export_crash_info(debugger, process)
+                        exit_lldb(debugger)
+                        _monitoring_active = False
+                        return
+                    else:
+                        # Continue execution for trace/breakpoint stops
+                        print("Process stopped (trace/breakpoint), continuing...")
+                        result = process.Continue()
+                        if not result.Success():
+                            print(f"Failed to continue process: {result.GetError()}")
+                            break
                     
                 elif new_state == lldb.eStateExited:
                     exit_lldb(debugger)
+                    _monitoring_active = False
                     return
+
+    _monitoring_active = False
 
 def setup_timeout(debugger, command, result, internal_dict):
     """Set up the timeout mechanism."""
@@ -292,13 +346,34 @@ def auto_activate():
     except Exception as e:
         print(f"ERROR: Exception in auto_activate: {str(e)}")
 
+def start_monitoring():
+    """Manual function to start monitoring - call this directly."""
+    try:
+        debugger = lldb.debugger
+        if not debugger:
+            print("ERROR: No debugger instance available")
+            return
+            
+        target = debugger.GetSelectedTarget()
+        if not target:
+            print("ERROR: No target selected")
+            return
+            
+        process = target.GetProcess()
+        if not process or not process.IsValid():
+            print("ERROR: No valid process available")
+            return
+            
+        setup_timeout(debugger, None, None, None)
+        
+    except Exception as e:
+        print(f"ERROR: Exception in start_monitoring: {str(e)}")
+
 def __lldb_init_module(debugger, internal_dict):
     """Entry point for LLDB to load the script."""
     try:
         debugger.HandleCommand('command script add -f timeout_kill.setup_timeout timeout')
-        # Automatically invoke timeout command after script load
-        debugger.HandleCommand('timeout')
-        print("Timeout script loaded and activated. Monitoring process with 60-second timeout.")
+        print("Timeout script loaded. Use 'timeout' command to activate monitoring.")
     except Exception as e:
         print(f"ERROR: Exception in __lldb_init_module: {str(e)}")
 
@@ -307,6 +382,11 @@ if __name__ != '__main__':
     try:
         # Check if we're in an lldb context
         if 'lldb' in globals() and hasattr(lldb, 'debugger'):
-            auto_activate()
+            # Try immediate activation first
+            start_monitoring()
+            
+            # If that fails, try the delayed approach
+            if not _monitoring_active:
+                auto_activate()
     except:
         pass  # Silently fail if not in lldb context
