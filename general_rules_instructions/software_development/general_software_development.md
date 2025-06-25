@@ -5,7 +5,7 @@ For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{var
 
 ## Core Development Principles for AI Agents
 
-### 1. File Management Protocol (MANDATORY)
+### 1. File Management Protocol 
 **Critical**: Before applying any changes to files, AI agents must reread the target file to ensure they have the most current version. Files may have been modified outside of the current session by other processes, users, or concurrent operations.
 
 #### File Change Workflow:
@@ -68,6 +68,19 @@ When fixing bugs or addressing issues:
 - Clean up temporary files created during development that are no longer needed
 - Ensure all code follows the project's established patterns and conventions
 - **Do not create file backups** (e.g., .bak, .backup, .old files) during development operations - rely on version control for file history and recovery
+
+#### Code Comment Standards
+**Prohibited Comments**:
+- **NO AI Agent Activity Comments**: Do not add comments explaining what the AI agent has done (e.g., "// Added by AI agent", "// Fixed by Claude")
+- **NO Obvious Code Explanations**: Do not add comments that simply restate what the code does (e.g., `i++; // increment i`)
+- **NO Section Annotations**: Do not annotate code with comment blocks that divide code into sections (e.g., `// === MAIN LOGIC ===`, `// --- Helper Functions ---`)
+- **NO Future planning** Do not add  TODO comments for genuine future improvements (sparingly)
+
+**Allowed Comments**:
+- Complex business logic explanations that clarify **why** something is done, not **what** is done
+- Non-obvious algorithm explanations or mathematical formulas
+- Important warnings about potential side effects or limitations
+- API documentation for public interfaces (when required by project standards)
 
 ### 5. Coding Guidelines Integration
 Use all coding guidelines from the `{CodingGuidelinesURLs}` list, which can contain both web URLs and local file paths. The content from these guidelines should be incorporated with the current file content and project requirements.
