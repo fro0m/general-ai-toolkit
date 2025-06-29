@@ -8,28 +8,38 @@
   const COOLDOWN_MS = 2500;
   let lastClick = 0;
 
+  const BUTTONS_TO_CLICK = [
+    {
+      selector: 'a.monaco-button[role="button"], button.monaco-button',
+      text: /continue/i,
+      name: 'Continue'
+    },
+    {
+      selector: 'a.monaco-button[role="button"], button.monaco-button',
+      text: /try again/i,
+      name: 'Try again'
+    },
+    {
+      selector: 'a.action-label[role="button"]',
+      text: /^keep$/i,
+      name: 'Keep'
+    }
+  ];
+
   function clickIfFound() {
     const now = Date.now();
     if (now - lastClick < COOLDOWN_MS) return;
 
-    // Continue
-    const continueBtn = Array.from(
-      document.querySelectorAll('a.monaco-button[role="button"], button.monaco-button')
-    ).find(el => /continue/i.test(el.textContent?.trim()));
-    if (continueBtn) {
-      continueBtn.click();
-      lastClick = now;
-      console.log('[auto] Clicked Continue');
-    }
+    for (const button of BUTTONS_TO_CLICK) {
+      const btn = Array.from(document.querySelectorAll(button.selector))
+        .find(el => button.text.test(el.textContent?.trim()));
 
-    // Keep
-    const keepBtn = Array.from(
-      document.querySelectorAll('a.action-label[role="button"]')
-    ).find(el => /^keep$/i.test(el.textContent?.trim()));
-    if (keepBtn) {
-      keepBtn.click();
-      lastClick = now;
-      console.log('[auto] Clicked Keep');
+      if (btn) {
+        btn.click();
+        lastClick = now;
+        console.log(`[auto] Clicked ${button.name}`);
+        return; // Click only one button per cooldown period
+      }
     }
   }
 
