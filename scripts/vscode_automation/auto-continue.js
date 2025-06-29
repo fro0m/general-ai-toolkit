@@ -17,7 +17,7 @@
     {
       selector: 'a.monaco-button[role="button"], button.monaco-button',
       text: /try again/i,
-      name: 'Try again'
+      name: 'Try Again'
     },
     {
       selector: 'a.action-label[role="button"]',
