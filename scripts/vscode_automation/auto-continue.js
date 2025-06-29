@@ -1,8 +1,33 @@
-// To see the logs and check if the script is working,
-// open the Developer Tools in VS Code.
-// You can do this by going to Help > Toggle Developer Tools,
-// and then opening the Console tab.
-// The script will print a message for all its actions.
+/**
+ * VS Code Copilot Auto-Continue Script
+ * 
+ * This script automates interactions with VS Code's Copilot Chat by:
+ * 1. Automatically clicking common action buttons (Continue, Try Again, Keep)
+ * 2. Sending a continuation prompt when the chat is idle
+ * 3. Managing cooldowns between actions to prevent rate limiting
+ * 
+ * Usage Instructions:
+ * 1. Open VS Code's Developer Tools (Help > Toggle Developer Tools)
+ * 2. Go to the Console tab
+ * 3. Paste this script and press Enter to execute
+ * 
+ * Features:
+ * - Automatically clicks "Continue", "Try Again", and "Keep" buttons
+ * - Sends a continuation prompt when no actions are available
+ * - Respects cooldown periods between actions
+ * - Logs all actions to the console for monitoring
+ * 
+ * Configuration:
+ * - BUTTON_COOLDOWN_MS: Minimum time between button clicks (default: 2500ms)
+ * - PROMPT_COOLDOWN_MS: Minimum time between sending prompts (default: 20 minutes)
+ * - BUTTONS_TO_CLICK: List of buttons to automatically click with their selectors
+ *
+ * Based on: https://github.com/PawiX25/copilot-auto-continue
+ * 
+ * To stop the script, run in console:
+ * clearInterval(intervalId);
+ * observer.disconnect();
+ */
 
 (function(){
   const BUTTON_COOLDOWN_MS = 2500;
@@ -119,8 +144,4 @@
 
   console.log('[auto] VS Code Copilot Chat automation script is running');
   console.log(`[auto] Will automatically send prompt every ${PROMPT_COOLDOWN_MS / 1000 / 60} minutes when idle`);
-
-  // To stop the script, run this in the console:
-  // clearInterval(intervalId);
-  // observer.disconnect();
 })();
