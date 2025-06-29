@@ -6,35 +6,39 @@
  * 2. Sending a continuation prompt when the chat is idle
  * 3. Managing cooldowns between actions to prevent rate limiting
  * 
- * Usage Instructions:
- * 1. Open VS Code's Developer Tools (Help > Toggle Developer Tools)
+ * ===========================================================================
+ * 🚀 HOW TO START:
+ * 1. Open VS Code's Developer Tools (Help > Toggle Developer Tools or Ctrl+Shift+I)
  * 2. Go to the Console tab
- * 3. Paste this script and press Enter to execute
+ * 3. Paste this entire script and press Enter to execute
+ *
+ * 🛑 HOW TO STOP:
+ * To stop the automation, run these commands in the same Console tab:
+ * 1. clearInterval(intervalId);
+ * 2. observer.disconnect();
+ * 3. console.log('[auto] Automation has been stopped');
  * 
- * Features:
+ * Note: The script will automatically stop if you close the Developer Tools.
+ * ===========================================================================
+ * 
+ * FEATURES:
  * - Automatically clicks "Continue", "Try Again", and "Keep" buttons
  * - Sends a continuation prompt when no actions are available
  * - Respects cooldown periods between actions
  * - Logs all actions to the console for monitoring
  * 
- * Configuration:
+ * CONFIGURATION (modify at the top of the script):
  * - BUTTON_COOLDOWN_MS: Minimum time between button clicks (default: 2500ms)
  * - PROMPT_COOLDOWN_MS: Minimum time between sending prompts (default: 20 minutes)
  * - BUTTONS_TO_CLICK: List of buttons to automatically click with their selectors
  *
  * Based on: https://github.com/PawiX25/copilot-auto-continue
- * 
- * To stop the script, run in console:
- * clearInterval(intervalId);
- * observer.disconnect();
- * 
  */
 
 (function(){
   const BUTTON_COOLDOWN_MS = 2500;
-  const PROMPT_COOLDOWN_MS = 20 * 60 * 1000; // 20 minutes
+  const PROMPT_COOLDOWN_MS = 0; // No cooldown between prompts
   let lastClick = 0;
-  let lastPromptTime = 0;
 
   const BUTTONS_TO_CLICK = [
     {
@@ -93,8 +97,10 @@
     
     if (debugInfo.length > 0) {
       console.debug('[auto] Task active - Detected:', debugInfo.join(', '));
-    } else {
-      console.debug('[auto] No active task indicators found');
+    } else if (!isActive) {
+      console.log('[auto] No active task detected - System is idle');
+      // Add a timestamp for better tracking
+      console.debug(`[auto] Last activity check: ${new Date().toISOString()}`);
     }
     
     return isActive;
@@ -129,12 +135,6 @@
   }
 
   function sendPrompt() {
-    const now = Date.now();
-    if (now - lastPromptTime < PROMPT_COOLDOWN_MS) {
-      console.log(`[auto] Prompt cooldown active. Next prompt available in ${Math.ceil((PROMPT_COOLDOWN_MS - (now - lastPromptTime)) / 1000 / 60)} minutes`);
-      return;
-    }
-
     const prompt = "Continue executing the current task if it exists or do tasks on the dartboard iteratively until no uncompleted tasks left. Use build_run_rules, general, product_requirements_design instructions.md files.";
     const input = document.querySelector('div[role="textbox"][contenteditable="true"]');
     
@@ -153,7 +153,6 @@
       const sendButton = document.querySelector('button[title*="Send"]:not([disabled]), button[aria-label*="Send"]:not([disabled])');
       if (sendButton) {
         sendButton.click();
-        lastPromptTime = now;
         console.log('[auto] Sent continuation prompt to Copilot Chat');
       }
     }
@@ -163,10 +162,14 @@
     const now = Date.now();
     console.debug(`[auto] Checking for actions... (${new Date().toISOString()})`);
     
-    // Check for buttons to click first
+    // First check if there's an active task
+    const hasActiveTask = isTaskActive();
+    console.debug(`[auto] Active task detected: ${hasActiveTask}`);
+    
+    // Check for buttons to click if cooldown has passed
     let foundButton = false;
-    if (now - lastClick >= BUTTON_COOLDOWN_MS) {
-      console.debug('[auto] Checking for buttons to click...');
+    if (!hasActiveTask && now - lastClick >= BUTTON_COOLDOWN_MS) {
+      console.debug('[auto] No active task, checking for buttons...');
       for (const button of BUTTONS_TO_CLICK) {
         const buttons = Array.from(document.querySelectorAll(button.selector))
           .filter(el => button.text.test(el.textContent?.trim()));
@@ -196,20 +199,14 @@
       console.debug(`[auto] Button cooldown active. Next check in ${Math.ceil((BUTTON_COOLDOWN_MS - (now - lastClick)) / 1000)}s`);
     }
     
-    // Check if we should send a prompt
-    if (!foundButton) {
-      console.debug('[auto] No buttons to click, checking if we should send prompt...');
-      const taskActive = isTaskActive();
-      const inputReady = isInputReady();
-      
-      console.debug(`[auto] Task active: ${taskActive}, Input ready: ${inputReady}`);
-      
-      if (!taskActive && inputReady) {
-        console.log('[auto] Conditions met, attempting to send prompt...');
+    // If no buttons were clicked and no active task, send a prompt
+    if (!hasActiveTask && !foundButton) {
+      console.debug('[auto] No active task and no buttons to click, checking if we should send prompt...');
+      if (isInputReady()) {
+        console.log('[auto] No active task, sending continuation prompt...');
         sendPrompt();
       } else {
-        if (taskActive) console.debug('[auto] Not sending prompt: Task is active');
-        if (!inputReady) console.debug('[auto] Not sending prompt: Input not ready');
+        console.debug('[auto] Input not ready for sending prompt');
       }
     }
   }
