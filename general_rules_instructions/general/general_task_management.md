@@ -12,6 +12,14 @@ For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{var
 
 **Note:** All steps in this task management workflow must be performed automatically without prompting. Throughout the entire AI agent coding session, the dartboard specified by the user must be used. If the user has not specified a dartboard, fallback to the dartboard specified in `{DartboardID}` for all task-related operations.
 
+**Terminal Command Execution:**
+- When executing terminal commands, always redirect both standard output and standard error to a temporary file (e.g., `/tmp/command_output.txt`)
+- After command completion, read the output from the file instead of directly from the terminal
+- This ensures complete capture of command output, especially for long-running commands or those with paginated output
+- Example command format: `command > /tmp/command_output.txt 2>&1`
+- After execution, read and process the contents of `/tmp/command_output.txt`
+- Clean up the temporary file after processing its contents
+
 Follow this workflow for managing tasks:
 
 1.  **Retrieve Task:**
