@@ -27,6 +27,7 @@
  * To stop the script, run in console:
  * clearInterval(intervalId);
  * observer.disconnect();
+ * 
  */
 
 (function(){
@@ -56,21 +57,75 @@
   function isTaskActive() {
     // Check if there are any active task indicators in the chat
     const activeTaskIndicators = [
-      'div[class*="typing"]',
-      'div[class*="progress"]',
-      'div[class*="loading"]',
-      'button[aria-label*="Stop"]',
-      'button[title*="Stop"]'
+      { selector: 'div[class*="typing"]', name: 'typing indicator' },
+      { selector: 'div[class*="progress"]', name: 'progress indicator' },
+      { selector: 'div[class*="loading"]', name: 'loading indicator' },
+      { selector: 'button[aria-label*="Stop"]', name: 'stop button (aria-label)' },
+      { selector: 'button[title*="Stop"]', name: 'stop button (title)' },
+      { selector: 'div[class*="response"][class*="streaming"], div[class*="response"][class*="generating"]', name: 'streaming/generating response' },
+      { selector: 'div[class*="markdown"][class*="typing"]', name: 'markdown typing indicator' }
     ];
     
-    return activeTaskIndicators.some(selector => 
-      document.querySelector(selector) !== null
+    // Debug: Log all found elements
+    const debugInfo = [];
+    let isActive = false;
+    
+    for (const { selector, name } of activeTaskIndicators) {
+      const elements = Array.from(document.querySelectorAll(selector));
+      if (elements.length > 0) {
+        debugInfo.push(`Found ${elements.length} ${name} elements`);
+        isActive = true;
+      }
+    }
+    
+    // Additional debug: Check for any visible loading indicators
+    const loadingElements = Array.from(document.querySelectorAll('div[class*="loading"], div[class*="spinner"], div[class*="progress"]'));
+    const visibleLoading = loadingElements.some(el => 
+      el.offsetParent !== null && 
+      window.getComputedStyle(el).display !== 'none' &&
+      window.getComputedStyle(el).visibility !== 'hidden'
     );
+    
+    if (visibleLoading) {
+      debugInfo.push('Found visible loading indicator');
+      isActive = true;
+    }
+    
+    if (debugInfo.length > 0) {
+      console.debug('[auto] Task active - Detected:', debugInfo.join(', '));
+    } else {
+      console.debug('[auto] No active task indicators found');
+    }
+    
+    return isActive;
   }
 
   function isInputReady() {
-    const input = document.querySelector('div[role="textbox"][contenteditable="true"]');
-    return input && !input.getAttribute('aria-disabled');
+    const inputSelectors = [
+      'div[role="textbox"][contenteditable="true"]',
+      'textarea[placeholder*="Ask"]',
+      'textarea[placeholder*="Message"]'
+    ];
+    
+    for (const selector of inputSelectors) {
+      const input = document.querySelector(selector);
+      if (input) {
+        const isDisabled = input.getAttribute('aria-disabled') === 'true' || 
+                         input.disabled || 
+                         input.getAttribute('disabled') !== null ||
+                         window.getComputedStyle(input).display === 'none' ||
+                         window.getComputedStyle(input).visibility === 'hidden';
+        
+        console.debug(`[auto] Input ready check: ${selector} - ${!isDisabled ? 'READY' : 'NOT READY'}`);
+        
+        if (!isDisabled) {
+          return true;
+        }
+      }
+    }
+    
+    console.debug('[auto] No enabled input field found');
+    return false;
   }
 
   function sendPrompt() {
@@ -106,27 +161,56 @@
 
   function checkAndContinue() {
     const now = Date.now();
+    console.debug(`[auto] Checking for actions... (${new Date().toISOString()})`);
     
     // Check for buttons to click first
     let foundButton = false;
     if (now - lastClick >= BUTTON_COOLDOWN_MS) {
+      console.debug('[auto] Checking for buttons to click...');
       for (const button of BUTTONS_TO_CLICK) {
-        const btn = Array.from(document.querySelectorAll(button.selector))
-          .find(el => button.text.test(el.textContent?.trim()));
+        const buttons = Array.from(document.querySelectorAll(button.selector))
+          .filter(el => button.text.test(el.textContent?.trim()));
+          
+        console.debug(`[auto] Found ${buttons.length} potential '${button.name}' buttons`);
+        
+        const btn = buttons.find(btn => {
+          const style = window.getComputedStyle(btn);
+          const isVisible = btn.offsetParent !== null && 
+                          style.display !== 'none' && 
+                          style.visibility !== 'hidden' &&
+                          style.opacity !== '0';
+          console.debug(`[auto] Button '${button.name}' visibility: ${isVisible ? 'VISIBLE' : 'HIDDEN'}`);
+          return isVisible;
+        });
 
         if (btn) {
+          console.log(`[auto] Clicking '${button.name}' button`);
           btn.click();
           lastClick = now;
-          console.log(`[auto] Clicked ${button.name}`);
           foundButton = true;
-          break; // Click only one button per cooldown period
+          console.log(`[auto] Clicked ${button.name}`);
+          return; // Exit after clicking one button
         }
       }
+    } else if (now - lastClick < BUTTON_COOLDOWN_MS) {
+      console.debug(`[auto] Button cooldown active. Next check in ${Math.ceil((BUTTON_COOLDOWN_MS - (now - lastClick)) / 1000)}s`);
     }
     
-    // Only send prompt if no buttons were found to click, no active task, and input is ready
-    if (!foundButton && !isTaskActive() && isInputReady()) {
-      sendPrompt();
+    // Check if we should send a prompt
+    if (!foundButton) {
+      console.debug('[auto] No buttons to click, checking if we should send prompt...');
+      const taskActive = isTaskActive();
+      const inputReady = isInputReady();
+      
+      console.debug(`[auto] Task active: ${taskActive}, Input ready: ${inputReady}`);
+      
+      if (!taskActive && inputReady) {
+        console.log('[auto] Conditions met, attempting to send prompt...');
+        sendPrompt();
+      } else {
+        if (taskActive) console.debug('[auto] Not sending prompt: Task is active');
+        if (!inputReady) console.debug('[auto] Not sending prompt: Input not ready');
+      }
     }
   }
 
