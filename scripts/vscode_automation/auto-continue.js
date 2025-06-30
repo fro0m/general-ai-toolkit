@@ -72,53 +72,137 @@ function isTaskActive() {
   console.log('%c[auto] 🔍 === ACTIVE TASK CHECK STARTED ===', 'font-weight: bold; color: #2196F3;');
   
   try {
+    // Enhanced active task indicators based on VS Code Copilot Chat source analysis
     const activeIndicators = [
-      '.chat-response .codicon-loading:not([style*="display: none"])',
-      '.copilot-chat .codicon-loading:not([style*="display: none"])',
-      '.interactive-result .codicon-loading:not([style*="display: none"])',
+      // Loading indicators
+      '.codicon-loading:not([style*="display: none"])',
+      '.codicon-sync-spin:not([style*="display: none"])',
       '.monaco-progress-container:not([style*="display: none"])',
+      '.progress-bar:not([style*="display: none"])',
+      
+      // VS Code specific chat elements indicating activity
+      '.interactive-session .monaco-progress-container',
+      '.interactive-result-editor.loading',
+      '.interactive-result .codicon-loading',
+      '.chat-response-part .codicon-loading',
+      '.chat-request-part .codicon-loading',
+      
+      // Response streaming/generating states
       'div[class*="typing"]:not([style*="display: none"])',
-      'div[class*="response"][class*="streaming"]:not([style*="display: none"])',
-      'div[class*="response"][class*="generating"]:not([style*="display: none"])',
-      'div[class*="markdown"][class*="typing"]:not([style*="display: none"])',
+      'div[class*="streaming"]:not([style*="display: none"])',
+      'div[class*="generating"]:not([style*="display: none"])',
+      'div[class*="processing"]:not([style*="display: none"])',
       '.response-streaming:not([style*="display: none"])',
       '.generating-response:not([style*="display: none"])',
-      '.chat-response button[aria-label*="Stop"]:not([style*="display: none"])',
-      '.copilot-chat button[title*="Stop"]:not([style*="display: none"])',
-      '.interactive-result button[aria-busy="true"]:not([style*="display: none"])',
+      
+      // ARIA busy indicators
+      '[aria-busy="true"]:not([style*="display: none"])',
+      '[role="progressbar"]:not([style*="display: none"])',
+      
+      // Stop/Cancel buttons (indicate active processing)
+      'button[aria-label*="Stop"]:not([disabled]):not([style*="display: none"])',
+      'button[title*="Stop"]:not([disabled]):not([style*="display: none"])',
+      'button[aria-label*="Cancel"]:not([disabled]):not([style*="display: none"])',
+      'button[title*="Cancel"]:not([disabled]):not([style*="display: none"])',
+      
+      // Chat-specific progress states
       '.chat-response.in-progress:not([style*="display: none"])',
       '.chat-typing-indicator:not([style*="display: none"])',
-      '.copilot-thinking:not([style*="display: none"])'
+      '.copilot-thinking:not([style*="display: none"])',
+      '.chat-response-progress:not([style*="display: none"])',
+      
+      // Workbench and editor states
+      '.workbench .monaco-progress-container:not([style*="display: none"])',
+      '.editor-widget .monaco-progress-container:not([style*="display: none"])',
+      
+      // Additional VS Code patterns
+      '.monaco-workbench [class*="loading"]:not([style*="display: none"])',
+      '.monaco-workbench [class*="progress"]:not([style*="display: none"])',
+      '.part[class*="loading"]:not([style*="display: none"])'
     ];
+    
+    console.log(`[auto] 🔍 Checking ${activeIndicators.length} active task indicators...`);
     
     for (const selector of activeIndicators) {
       try {
         const elements = Array.from(document.querySelectorAll(selector));
         if (elements.length > 0) {
+          console.log(`[auto] 📊 Found ${elements.length} elements with selector: ${selector}`);
+          
           const visibleElements = elements.filter(el => {
-            const rect = el.getBoundingClientRect();
-            const style = window.getComputedStyle(el);
-            const isVisible = rect.width > 0 && rect.height > 0 &&
-                             el.offsetParent !== null &&
-                             style.display !== 'none' &&
-                             style.visibility !== 'hidden' &&
-                             style.opacity !== '0';
-            
-            if (isVisible) {
-              const inChatContext = el.closest('.chat-response, .copilot-chat, .interactive-result, .chat-container');
-              return inChatContext;
+            try {
+              const rect = el.getBoundingClientRect();
+              const style = window.getComputedStyle(el);
+              const isVisible = rect.width > 0 && rect.height > 0 &&
+                               el.offsetParent !== null &&
+                               style.display !== 'none' &&
+                               style.visibility !== 'hidden' &&
+                               style.opacity !== '0';
+              
+              if (isVisible) {
+                // Check if element is in relevant context (broader search)
+                const inRelevantContext = el.closest('.chat-response, .copilot-chat, .interactive-result, .interactive-session, .chat-container, .workbench, .monaco-workbench, .part') ||
+                                         el.matches('.monaco-progress-container, .codicon-loading, [aria-busy="true"], [role="progressbar"]');
+                
+                if (inRelevantContext) {
+                  const elementInfo = {
+                    tag: el.tagName,
+                    class: el.className,
+                    text: (el.textContent || '').trim().substring(0, 50),
+                    ariaLabel: el.getAttribute('aria-label') || '',
+                    ariaBusy: el.getAttribute('aria-busy'),
+                    selector: selector
+                  };
+                  console.log(`[auto] 🎯 Active element found:`, elementInfo);
+                  return true;
+                }
+              }
+              return false;
+            } catch (e) {
+              return false;
             }
-            return false;
           });
           
           if (visibleElements.length > 0) {
+            console.log(`[auto] ✅ ${visibleElements.length} visible active elements found with selector: ${selector}`);
             console.log('%c[auto] 🟡 === ACTIVE TASK DETECTED ===', 'font-weight: bold; background: #fff3cd; color: #856404;');
             return true;
           }
         }
       } catch (selectorError) {
+        console.log(`[auto] ❌ Selector error for ${selector}:`, selectorError.message);
         continue;
       }
+    }
+    
+    // Additional check: look for any elements with working/busy text content
+    try {
+      const textBasedBusyElements = Array.from(document.querySelectorAll('*')).filter(el => {
+        const text = (el.textContent || '').toLowerCase();
+        const isSmallElement = text.length < 200; // Avoid large content blocks
+        return isSmallElement && (
+          text.includes('generating') ||
+          text.includes('thinking') ||
+          text.includes('processing') ||
+          text.includes('working') ||
+          text.includes('loading')
+        );
+      });
+      
+      if (textBasedBusyElements.length > 0) {
+        console.log(`[auto] 📝 Found ${textBasedBusyElements.length} elements with busy text content`);
+        for (const el of textBasedBusyElements.slice(0, 3)) { // Check first 3
+          const rect = el.getBoundingClientRect();
+          const isVisible = rect.width > 0 && rect.height > 0 && el.offsetParent !== null;
+          if (isVisible) {
+            console.log(`[auto] 📝 Busy text element: "${el.textContent.trim().substring(0, 50)}"`);
+            console.log('%c[auto] 🟡 === ACTIVE TASK DETECTED (TEXT-BASED) ===', 'font-weight: bold; background: #fff3cd; color: #856404;');
+            return true;
+          }
+        }
+      }
+    } catch (textError) {
+      console.log('[auto] ❌ Error in text-based detection:', textError.message);
     }
     
     console.log('%c[auto] 🟢 === NO ACTIVE TASK - READY FOR ACTION ===', 'font-weight: bold; background: #d4edda; color: #155724;');
