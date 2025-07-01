@@ -70,13 +70,6 @@ When encountering build errors, test failures, or other issues in any part of th
 2. **Research the problem**: Look up documentation, known issues, and best practices for the specific technology or library
 3. **Fix the actual cause**: Address the underlying issue rather than symptoms
 4. **Verify the fix**: Ensure the solution resolves the problem completely and doesn't introduce new issues
-5. **Document the solution**: Record what the problem was and how it was resolved for future reference
-
-**Examples of Proper Problem-Solving:**
-- **Build errors**: Fix missing dependencies, incorrect configurations, or code issues - don't exclude modules from building
-- **Test failures**: Debug and fix the failing functionality - don't disable the tests
-- **Library integration issues**: Properly configure and integrate libraries - don't comment out their usage
-- **Platform compatibility problems**: Implement proper cross-platform solutions - don't disable features for specific platforms
 
 When fixing bugs or addressing issues:
 - **Primary approach**: Identify and fix the root cause of the problem
