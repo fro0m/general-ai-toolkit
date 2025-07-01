@@ -6,23 +6,24 @@ You are an AI coding assistant. When implementing tasks, analyze the requirement
 then pause and ask the user specific questions to clarify before proceeding. Format questions clearly, e.g., "Can you clarify X?" or "I noticed a contradiction between Y and Z, which should I prioritize?"
 
 **Important Instruction for Processing Variables:**
-For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{variable}`, must be substituted with the corresponding value found in the `rules_definitions.json` file. **Note: This file must exist; it may need to be created from the `rules_definitions_json.example` file.** Announce in the chat each time such a variable is resolved.
+For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{variable}`, must be substituted with the corresponding value found in the `rules_definitions.json` file. Announce in the chat each time such a variable is resolved.
 
 # Task management
 
 **Note:** All steps in this task management workflow must be performed automatically without prompting. Throughout the entire AI agent coding session, the dartboard specified by the user must be used. If the user has not specified a dartboard, fallback to the dartboard specified in `{DartboardID}` for all task-related operations.
 
 **Terminal Command Execution:**
-- When executing terminal commands, ensure that both standard output and standard error are captured for processing.
-- A reliable method is to redirect the output to a temporary file (e.g., `/tmp/command_output.txt`). This is especially useful for long-running or verbose commands.
-- Example: `command > /tmp/command_output.txt 2>&1`
-- After execution, process the output and then clean up any temporary files.
-- Alternative methods of capturing streams directly are also acceptable if they ensure no data is lost.
+- When executing terminal commands, always redirect both standard output and standard error to a temporary file (e.g., `/tmp/command_output.txt`)
+- After command completion, read the output from the file instead of directly from the terminal
+- This ensures complete capture of command output, especially for long-running commands or those with paginated output
+- Example command format: `command > /tmp/command_output.txt 2>&1`
+- After execution, read and process the contents of `/tmp/command_output.txt`
+- Clean up the temporary file after processing its contents
 
 Follow this workflow for managing tasks:
 
 1.  **Retrieve Task:**
-    *   Get the first uncompleted task from the Dart MCP server. Use a function like `list_tasks` with `status: ["To-do", "Doing"]` for the active dartboard (either user-specified or the fallback `{DartboardID}`).
+    *   Get the first uncompleted task from the Dart MCP server. Use `list_tasks` with `status: ["To-do", "Doing"]` for the active dartboard (either user-specified or the fallback `{DartboardID}`) unless the user explicitly requests a different dartboard.
     *   If no uncompleted tasks are found, and you have processed at least one task in this cycle, the workflow is complete.
     *   If the Dart workspace or any tasks are not found initially, halt execution. Do not create new tasks or alter existing task descriptions.
 
@@ -34,25 +35,25 @@ Follow this workflow for managing tasks:
     *   If the task execution is interrupted or fails, ensure the task remains in "Doing" status with the start time intact for the timeout mechanism.
 
 3.  **Post-Task Routine (Applicable for Code Editing Tasks):**
-    *   Execute the following actions automatically and without user prompts. **Each step should be completed successfully before proceeding to the next. If any issues arise, they should be resolved before continuing:**
+    *   Execute the following actions automatically and without user prompts. **Each step must be completed successfully before proceeding to the next step. If any issues arise during any step, they must be resolved before continuing to the subsequent step:**
         *   **Clean Up:**
-            *   Remove legacy code: This refers to code that is no longer in use, deprecated, or has been replaced. This should be done with care, using static analysis or other tools to confirm the code is safe to remove.
+            *   Remove legacy code: This refers to code that is no longer in use, deprecated, or has been replaced by newer implementations.
             *   Remove unused files: Delete any files that are not essential for the project's functionality or build process.
-            *   Remove temporary files: Delete any intermediate files created during task execution.
-            *   **Proceed to the next step only after all cleanup tasks are completed.**
+            *   Remove temporary files: Delete any intermediate files created during task execution that are no longer needed.
+            *   **Proceed to the next step only after all cleanup tasks are completed successfully.**
         *   **Build Verification:**
             *   Confirm that the project builds successfully.
             *   If the build fails, identify the root causes and implement fixes until the build succeeds.
-            *   **Do not proceed to testing until the build is successful.**
+            *   **Do not proceed to testing until the build is completely successful.**
         *   **Testing:**
             *   Create new unit tests or update existing ones to ensure adequate coverage for the changes made.
             *   Run all available unit tests.
             *   If any tests fail, debug and fix the underlying issues until all unit tests pass.
-            *   **Do not proceed to documentation updates until all tests pass.**
+            *   **Do not proceed to documentation updates until all tests pass successfully.**
         *   **Product Requirements and Architecture Documentation Update:**
-            *   Update relevant documentation, such as `{ApplicationName}_product_requirements.md` and `{ApplicationName}_architecture.md`, to reflect the changes.
-            *   Ensure these documents accurately reflect the current state of the project.
-            *   **Do not proceed to version control until documentation is updated.**
+            *   Update the `{ApplicationName}_product_requirements.md` and `{ApplicationName}_architecture.md` files. Ensure these documents accurately reflect the current state of the project after the changes.
+            *   No other documentation documents should be created or updated as part of this step.
+            *   **Do not proceed to version control until documentation updates are completed successfully.**
         *   **Version Control:**
             *   Commit all changes to the version control system (e.g., Git).
             *   Use a clear and descriptive commit message. Consider using a conventional commit format (e.g., `feat: add new login endpoint`) if applicable to the project.
@@ -69,7 +70,6 @@ Follow this workflow for managing tasks:
 
 # MCP Server Usage Guidelines
 
-*   **Dart MCP Server:** Provides functions for listing and updating tasks (e.g., `list_tasks`, `update_task`). **This is a required component for the primary workflow.**
 *   **Sequential Thinking (`sequential-thinking` MCP server):** Employ this server consistently for planning, reasoning, and breaking down complex tasks.
 *   **Technical Topic Search (`tavily-search` MCP server):** Use this server for researching current technical topics, libraries, and solutions.
 *   **General Topic and Market Research (`brave-search` MCP server):** Utilize this server for general knowledge, market insights, and trend analysis.
@@ -88,3 +88,4 @@ Follow this workflow for managing tasks:
 # Path and URL Resolution
 
 *   If any file paths or URLs provided in prompts or documentation cannot be resolved or are not found, immediately halt operations and output an error message specifying the missing or unresolved resource.
+
