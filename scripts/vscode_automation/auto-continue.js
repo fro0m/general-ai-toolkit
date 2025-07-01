@@ -72,20 +72,25 @@ function isTaskActive() {
   console.log('%c[auto] 🔍 === ACTIVE TASK CHECK STARTED ===', 'font-weight: bold; color: #2196F3;');
   
   try {
-    // Enhanced active task indicators based on VS Code Copilot Chat source analysis
+    // Focused active task indicators - only actual loading/processing states
     const activeIndicators = [
-      // Loading indicators
+      // Core loading indicators
       '.codicon-loading:not([style*="display: none"])',
       '.codicon-sync-spin:not([style*="display: none"])',
-      '.monaco-progress-container:not([style*="display: none"])',
-      '.progress-bar:not([style*="display: none"])',
+      '.codicon-sync.codicon-spin:not([style*="display: none"])',
       
-      // VS Code specific chat elements indicating activity
-      '.interactive-session .monaco-progress-container',
-      '.interactive-result-editor.loading',
-      '.interactive-result .codicon-loading',
-      '.chat-response-part .codicon-loading',
-      '.chat-request-part .codicon-loading',
+      // Active progress bars (not static ones)
+      '.monaco-progress-container.active:not([style*="display: none"])',
+      '.monaco-progress-container.infinite:not([style*="display: none"])',
+      '.progress-bar.active:not([style*="display: none"])',
+      
+      // Chat-specific active states
+      '.chat-response.in-progress:not([style*="display: none"])',
+      '.chat-response .codicon-loading:not([style*="display: none"])',
+      '.interactive-result-editor.loading:not([style*="display: none"])',
+      '.chat-typing-indicator:not([style*="display: none"])',
+      '.copilot-thinking:not([style*="display: none"])',
+      '.generating-response:not([style*="display: none"])',
       
       // Response streaming/generating states
       'div[class*="typing"]:not([style*="display: none"])',
@@ -93,9 +98,8 @@ function isTaskActive() {
       'div[class*="generating"]:not([style*="display: none"])',
       'div[class*="processing"]:not([style*="display: none"])',
       '.response-streaming:not([style*="display: none"])',
-      '.generating-response:not([style*="display: none"])',
       
-      // ARIA busy indicators
+      // ARIA busy indicators (active elements only)
       '[aria-busy="true"]:not([style*="display: none"])',
       '[role="progressbar"]:not([style*="display: none"])',
       
@@ -105,20 +109,23 @@ function isTaskActive() {
       'button[aria-label*="Cancel"]:not([disabled]):not([style*="display: none"])',
       'button[title*="Cancel"]:not([disabled]):not([style*="display: none"])',
       
-      // Chat-specific progress states
-      '.chat-response.in-progress:not([style*="display: none"])',
-      '.chat-typing-indicator:not([style*="display: none"])',
-      '.copilot-thinking:not([style*="display: none"])',
-      '.chat-response-progress:not([style*="display: none"])',
+      // Terminal/execution specific loading
+      '.terminal .codicon-loading:not([style*="display: none"])',
+      '.execution-progress:not([style*="display: none"])',
       
-      // Workbench and editor states
-      '.workbench .monaco-progress-container:not([style*="display: none"])',
-      '.editor-widget .monaco-progress-container:not([style*="display: none"])',
-      
-      // Additional VS Code patterns
-      '.monaco-workbench [class*="loading"]:not([style*="display: none"])',
-      '.monaco-workbench [class*="progress"]:not([style*="display: none"])',
-      '.part[class*="loading"]:not([style*="display: none"])'
+      // Active workbench states (more specific)
+      '.editor-widget .monaco-progress-container.active:not([style*="display: none"])',
+      '.part.loading:not([style*="display: none"])'
+    ];
+    
+    // Exclude static/completed progress indicators that cause false positives
+    const excludedStaticIndicators = [
+      '.progress-container', // Static progress containers from completed tasks
+      '.rendered-markdown.progress-step', // Completed task step indicators
+      '.progress-step', // Static step indicators
+      '.task-summary', // Task summary containers
+      '.command-result', // Command result containers
+      '.execution-summary' // Execution summary containers
     ];
     
     console.log(`[auto] 🔍 Checking ${activeIndicators.length} active task indicators...`);
@@ -140,21 +147,51 @@ function isTaskActive() {
                                style.opacity !== '0';
               
               if (isVisible) {
-                // Check if element is in relevant context (broader search)
-                const inRelevantContext = el.closest('.chat-response, .copilot-chat, .interactive-result, .interactive-session, .chat-container, .workbench, .monaco-workbench, .part') ||
-                                         el.matches('.monaco-progress-container, .codicon-loading, [aria-busy="true"], [role="progressbar"]');
+                // Check if element is excluded (static indicator)
+                const isExcluded = excludedStaticIndicators.some(excludeSelector => {
+                  return el.matches(excludeSelector) || el.closest(excludeSelector);
+                });
+                
+                if (isExcluded) {
+                  console.log(`[auto] 🚫 Excluded static indicator: ${el.className}`);
+                  return false;
+                }
+                
+                // Check if element is in relevant context (more specific filtering)
+                const inRelevantContext = el.closest('.chat-response, .copilot-chat, .interactive-result, .interactive-session, .chat-container') ||
+                                         el.matches('.monaco-progress-container.active, .codicon-loading, [aria-busy="true"], [role="progressbar"], .terminal .codicon-loading');
                 
                 if (inRelevantContext) {
-                  const elementInfo = {
-                    tag: el.tagName,
-                    class: el.className,
-                    text: (el.textContent || '').trim().substring(0, 50),
-                    ariaLabel: el.getAttribute('aria-label') || '',
-                    ariaBusy: el.getAttribute('aria-busy'),
-                    selector: selector
-                  };
-                  console.log(`[auto] 🎯 Active element found:`, elementInfo);
-                  return true;
+                  // Additional check: ensure it's actually an active indicator, not just a static element
+                  const hasActiveClass = el.classList.contains('active') || 
+                                        el.classList.contains('loading') || 
+                                        el.classList.contains('spinning') || 
+                                        el.classList.contains('in-progress') ||
+                                        el.getAttribute('aria-busy') === 'true' ||
+                                        el.matches('[role="progressbar"]') ||
+                                        el.matches('.codicon-loading, .codicon-sync-spin');
+                  
+                  // Check for animated elements (truly active)
+                  const isAnimated = style.animationName !== 'none' || 
+                                   style.transform.includes('rotate') ||
+                                   el.matches('.codicon-loading, .codicon-sync-spin');
+                  
+                  if (hasActiveClass || isAnimated) {
+                    const elementInfo = {
+                      tag: el.tagName,
+                      class: el.className,
+                      text: (el.textContent || '').trim().substring(0, 50),
+                      ariaLabel: el.getAttribute('aria-label') || '',
+                      ariaBusy: el.getAttribute('aria-busy'),
+                      selector: selector,
+                      hasActiveClass: hasActiveClass,
+                      isAnimated: isAnimated
+                    };
+                    console.log(`[auto] 🎯 Active element found:`, elementInfo);
+                    return true;
+                  } else {
+                    console.log(`[auto] 🟠 Element found but not active: ${el.className}`);
+                  }
                 }
               }
               return false;
@@ -175,27 +212,38 @@ function isTaskActive() {
       }
     }
     
-    // Additional check: look for any elements with working/busy text content
+    // Additional check: look for any elements with working/busy text content (more specific)
     try {
-      const textBasedBusyElements = Array.from(document.querySelectorAll('*')).filter(el => {
+      const textBasedBusyElements = Array.from(document.querySelectorAll('.chat-response, .copilot-chat, .interactive-result, .terminal')).filter(el => {
         const text = (el.textContent || '').toLowerCase();
-        const isSmallElement = text.length < 200; // Avoid large content blocks
-        return isSmallElement && (
-          text.includes('generating') ||
-          text.includes('thinking') ||
-          text.includes('processing') ||
-          text.includes('working') ||
-          text.includes('loading')
+        const isSmallElement = text.length < 500; // Avoid large content blocks
+        const hasActiveBusyText = isSmallElement && (
+          text.includes('generating...') ||
+          text.includes('thinking...') ||
+          text.includes('processing...') ||
+          text.includes('working...') ||
+          text.includes('loading...') ||
+          text.includes('executing...') ||
+          text.includes('running...')
         );
+        
+        // Exclude static/completed text patterns
+        const hasStaticText = text.includes('created') ||
+                             text.includes('completed') ||
+                             text.includes('finished') ||
+                             text.includes('done') ||
+                             text.includes('success');
+        
+        return hasActiveBusyText && !hasStaticText;
       });
       
       if (textBasedBusyElements.length > 0) {
-        console.log(`[auto] 📝 Found ${textBasedBusyElements.length} elements with busy text content`);
+        console.log(`[auto] 📝 Found ${textBasedBusyElements.length} elements with active busy text content`);
         for (const el of textBasedBusyElements.slice(0, 3)) { // Check first 3
           const rect = el.getBoundingClientRect();
           const isVisible = rect.width > 0 && rect.height > 0 && el.offsetParent !== null;
           if (isVisible) {
-            console.log(`[auto] 📝 Busy text element: "${el.textContent.trim().substring(0, 50)}"`);
+            console.log(`[auto] 📝 Active busy text element: "${el.textContent.trim().substring(0, 50)}"`);
             console.log('%c[auto] 🟡 === ACTIVE TASK DETECTED (TEXT-BASED) ===', 'font-weight: bold; background: #fff3cd; color: #856404;');
             return true;
           }
@@ -203,6 +251,29 @@ function isTaskActive() {
       }
     } catch (textError) {
       console.log('[auto] ❌ Error in text-based detection:', textError.message);
+    }
+    
+    // Final check: Look for actual spinning/loading animations
+    try {
+      const spinningElements = Array.from(document.querySelectorAll('.codicon-loading, .codicon-sync-spin, [class*="spin"], [class*="rotate"]')).filter(el => {
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        const isVisible = rect.width > 0 && rect.height > 0 && el.offsetParent !== null;
+        const isAnimated = style.animationName !== 'none' || style.animationDuration !== '0s';
+        
+        if (isVisible && isAnimated) {
+          console.log(`[auto] 🌀 Found animated loading element: ${el.className}`);
+          return true;
+        }
+        return false;
+      });
+      
+      if (spinningElements.length > 0) {
+        console.log('%c[auto] 🟡 === ACTIVE TASK DETECTED (ANIMATION-BASED) ===', 'font-weight: bold; background: #fff3cd; color: #856404;');
+        return true;
+      }
+    } catch (animationError) {
+      console.log('[auto] ❌ Error in animation-based detection:', animationError.message);
     }
     
     console.log('%c[auto] 🟢 === NO ACTIVE TASK - READY FOR ACTION ===', 'font-weight: bold; background: #d4edda; color: #155724;');
@@ -215,41 +286,134 @@ function isTaskActive() {
 
 function isInputReady() {
   try {
+    console.log('[auto] 🔍 Checking for input field...');
+    
     const inputSelectors = [
+      // VS Code Copilot Chat specific selectors
       'div[role="textbox"][contenteditable="true"]',
+      '.interactive-input .monaco-editor textarea',
+      '.chat-input .monaco-editor textarea',
+      '.copilot-chat .monaco-editor textarea',
+      
+      // Generic input selectors
       'textarea[placeholder*="Ask"]',
-      'textarea[placeholder*="Message"]',
+      'textarea[placeholder*="Message"]', 
       'textarea[placeholder*="Chat"]',
+      'textarea[placeholder*="Send"]',
+      'textarea[aria-label*="Ask"]',
+      'textarea[aria-label*="Chat"]',
+      
+      // Monaco editor inputs
       '.monaco-inputbox input',
+      '.monaco-editor textarea',
+      '.monaco-editor .view-line',
+      
+      // Chat container inputs
       '.chat-input textarea',
       '.copilot-chat-input textarea',
-      '.interactive-input textarea'
+      '.interactive-input textarea',
+      '.interactive-input-part textarea',
+      '.chat-request-part textarea',
+      
+      // Broader search for any contenteditable or textarea in chat areas
+      '.chat-container [contenteditable="true"]',
+      '.copilot-chat [contenteditable="true"]',
+      '.interactive-session [contenteditable="true"]',
+      '.chat-container textarea',
+      '.copilot-chat textarea',
+      '.interactive-session textarea'
     ];
     
     for (const selector of inputSelectors) {
       try {
         const inputs = Array.from(document.querySelectorAll(selector));
+        console.log(`[auto] 📋 Found ${inputs.length} elements for selector: ${selector}`);
         
         for (let i = 0; i < inputs.length; i++) {
           const input = inputs[i];
+          
+          // Check if disabled
           const isDisabled = input.getAttribute('aria-disabled') === 'true' || 
                            input.disabled || 
                            input.getAttribute('disabled') !== null ||
-                           input.readOnly;
+                           input.readOnly ||
+                           input.getAttribute('readonly') !== null;
           
+          // Check visibility
           const rect = input.getBoundingClientRect();
+          const style = window.getComputedStyle(input);
           const isVisible = rect.width > 0 && rect.height > 0 && 
-                           input.offsetParent !== null;
+                           input.offsetParent !== null &&
+                           style.display !== 'none' &&
+                           style.visibility !== 'hidden' &&
+                           style.opacity !== '0';
           
-          if (!isDisabled && isVisible) {
+          // Check if it's in a relevant chat context
+          const inChatContext = input.closest('.chat-container, .copilot-chat, .interactive-session, .interactive-input, .chat-input') ||
+                               input.matches('.monaco-editor textarea, [role="textbox"]');
+          
+          if (!isDisabled && isVisible && inChatContext) {
+            const inputInfo = {
+              tag: input.tagName,
+              type: input.type || 'none',
+              placeholder: input.placeholder || '',
+              ariaLabel: input.getAttribute('aria-label') || '',
+              contentEditable: input.contentEditable,
+              selector: selector,
+              rect: {width: rect.width, height: rect.height}
+            };
+            console.log('[auto] ✅ Found ready input field:', inputInfo);
             return input;
+          } else {
+            const rejectReason = !isVisible ? 'not visible' : 
+                               isDisabled ? 'disabled' : 
+                               !inChatContext ? 'not in chat context' : 'unknown';
+            console.log(`[auto] 🟠 Input rejected (${rejectReason}):`, {
+              tag: input.tagName,
+              disabled: isDisabled,
+              visible: isVisible,
+              inContext: inChatContext,
+              selector: selector
+            });
           }
         }
       } catch (selectorError) {
+        console.log(`[auto] ❌ Selector error for ${selector}:`, selectorError.message);
         continue;
       }
     }
     
+    // Final fallback: search for any focusable element that could be an input
+    try {
+      console.log('[auto] 🔍 Fallback: searching for any focusable input elements...');
+      const allFocusable = Array.from(document.querySelectorAll('input, textarea, [contenteditable="true"], [tabindex]'));
+      const chatFocusable = allFocusable.filter(el => {
+        const rect = el.getBoundingClientRect();
+        const isVisible = rect.width > 0 && rect.height > 0 && el.offsetParent !== null;
+        const inChatArea = el.closest('.chat-container, .copilot-chat, .interactive-session, .monaco-workbench');
+        const looksLikeInput = el.tagName === 'TEXTAREA' || 
+                              el.tagName === 'INPUT' || 
+                              el.contentEditable === 'true' ||
+                              el.getAttribute('role') === 'textbox';
+        
+        return isVisible && inChatArea && looksLikeInput;
+      });
+      
+      if (chatFocusable.length > 0) {
+        console.log(`[auto] 📋 Found ${chatFocusable.length} focusable elements in chat areas`);
+        const bestMatch = chatFocusable[0]; // Take the first one
+        console.log('[auto] ✅ Using fallback input:', {
+          tag: bestMatch.tagName,
+          contentEditable: bestMatch.contentEditable,
+          role: bestMatch.getAttribute('role')
+        });
+        return bestMatch;
+      }
+    } catch (fallbackError) {
+      console.log('[auto] ❌ Error in fallback search:', fallbackError.message);
+    }
+    
+    console.log('[auto] ❌ No input field found');
     return null;
   } catch (error) {
     console.error('[auto] ❌ Error in isInputReady:', error);
@@ -263,79 +427,183 @@ function sendPrompt() {
     const input = isInputReady();
     
     if (input) {
+      console.log('[auto] 📝 Input field found, preparing to send prompt...');
+      
+      // Focus the input first
       input.focus();
       
+      // Clear any existing content
       if (input.contentEditable === 'true') {
-        input.textContent = prompt;
-        const inputEvent = new InputEvent('input', {
-          bubbles: true,
-          cancelable: true,
-          data: prompt
-        });
-        input.dispatchEvent(inputEvent);
-        
-        const changeEvent = new Event('change', {
-          bubbles: true,
-          cancelable: true
-        });
-        input.dispatchEvent(changeEvent);
+        input.textContent = '';
+        input.innerHTML = '';
       } else {
-        input.value = prompt;
-        const inputEvent = new Event('input', { bubbles: true });
-        const changeEvent = new Event('change', { bubbles: true });
-        input.dispatchEvent(inputEvent);
-        input.dispatchEvent(changeEvent);
+        input.value = '';
       }
       
-      const sendSelectors = [
-        'button[title*="Send"]:not([disabled])',
-        'button[aria-label*="Send"]:not([disabled])',
-        '.chat-input button[type="submit"]:not([disabled])',
-        '.send-button:not([disabled])',
-        '.action-item button[title*="Send"]:not([disabled])',
-        'button.monaco-button:not([disabled])',
-        'button[class*="send"]:not([disabled])',
-        '.interactive-input-part button:not([disabled])',
-        '.chat-request-part button:not([disabled])'
-      ];
-      
-      let sendButton = null;
-      for (const selector of sendSelectors) {
+      // Small delay to ensure focus
+      setTimeout(() => {
         try {
-          const candidates = Array.from(document.querySelectorAll(selector));
-          
-          sendButton = candidates.find(btn => {
-            const rect = btn.getBoundingClientRect();
-            const buttonText = (btn.textContent || btn.getAttribute('aria-label') || btn.getAttribute('title') || '').toLowerCase();
-            const looksLikeSend = buttonText.includes('send') || buttonText.includes('submit') || btn.type === 'submit';
-            const isVisible = rect.width > 0 && rect.height > 0;
+          // Set the prompt text
+          if (input.contentEditable === 'true') {
+            input.textContent = prompt;
+            input.innerHTML = prompt;
             
-            return isVisible && looksLikeSend;
-          });
-          if (sendButton) {
-            break;
+            // Dispatch input events for contenteditable
+            const inputEvent = new InputEvent('input', {
+              bubbles: true,
+              cancelable: true,
+              data: prompt
+            });
+            input.dispatchEvent(inputEvent);
+            
+            const changeEvent = new Event('change', {
+              bubbles: true,
+              cancelable: true
+            });
+            input.dispatchEvent(changeEvent);
+            
+            // Also try composition events for Monaco editor
+            const compositionStartEvent = new CompositionEvent('compositionstart', { bubbles: true });
+            const compositionUpdateEvent = new CompositionEvent('compositionupdate', { bubbles: true, data: prompt });
+            const compositionEndEvent = new CompositionEvent('compositionend', { bubbles: true, data: prompt });
+            
+            input.dispatchEvent(compositionStartEvent);
+            input.dispatchEvent(compositionUpdateEvent);
+            input.dispatchEvent(compositionEndEvent);
+            
+          } else {
+            input.value = prompt;
+            
+            // Dispatch events for regular inputs
+            const inputEvent = new Event('input', { bubbles: true });
+            const changeEvent = new Event('change', { bubbles: true });
+            const keyupEvent = new KeyboardEvent('keyup', { bubbles: true });
+            
+            input.dispatchEvent(inputEvent);
+            input.dispatchEvent(changeEvent);
+            input.dispatchEvent(keyupEvent);
           }
-        } catch (e) {
-          continue;
+          
+          console.log('[auto] ✅ Prompt text set, now looking for send button...');
+          
+          // Enhanced send button detection
+          const sendSelectors = [
+            // Specific VS Code send buttons
+            'button[aria-label*="Send"]:not([disabled])',
+            'button[title*="Send"]:not([disabled])',
+            'button[aria-label*="Submit"]:not([disabled])',
+            'button[title*="Submit"]:not([disabled])',
+            
+            // Generic submit buttons
+            'button[type="submit"]:not([disabled])',
+            '.send-button:not([disabled])',
+            '.submit-button:not([disabled])',
+            
+            // Monaco and chat specific
+            '.chat-input button:not([disabled])',
+            '.interactive-input-part button:not([disabled])',
+            '.chat-request-part button:not([disabled])',
+            '.copilot-chat button:not([disabled])',
+            '.action-item button[title*="Send"]:not([disabled])',
+            
+            // Icon buttons (often send buttons are just icons)
+            'button.monaco-button:not([disabled])',
+            'button[class*="send"]:not([disabled])',
+            'button[class*="submit"]:not([disabled])'
+          ];
+          
+          let sendButton = null;
+          for (const selector of sendSelectors) {
+            try {
+              const candidates = Array.from(document.querySelectorAll(selector));
+              console.log(`[auto] 🔍 Found ${candidates.length} candidates for selector: ${selector}`);
+              
+              sendButton = candidates.find(btn => {
+                const rect = btn.getBoundingClientRect();
+                const buttonText = (btn.textContent || btn.getAttribute('aria-label') || btn.getAttribute('title') || '').toLowerCase();
+                const looksLikeSend = buttonText.includes('send') || 
+                                    buttonText.includes('submit') || 
+                                    btn.type === 'submit' ||
+                                    btn.classList.contains('send-button') ||
+                                    btn.classList.contains('submit-button');
+                const isVisible = rect.width > 0 && rect.height > 0;
+                const inChatContext = btn.closest('.chat-container, .copilot-chat, .interactive-session, .interactive-input, .chat-input');
+                
+                const isGoodCandidate = isVisible && (looksLikeSend || inChatContext);
+                
+                if (isGoodCandidate) {
+                  console.log(`[auto] ✅ Good send button candidate:`, {
+                    text: buttonText,
+                    selector: selector,
+                    looksLikeSend: looksLikeSend,
+                    inContext: !!inChatContext
+                  });
+                }
+                
+                return isGoodCandidate;
+              });
+              
+              if (sendButton) {
+                console.log(`[auto] 🎯 Found send button with selector: ${selector}`);
+                break;
+              }
+            } catch (e) {
+              continue;
+            }
+          }
+          
+          if (sendButton) {
+            console.log('[auto] 🖱️ Clicking send button...');
+            sendButton.click();
+            console.log('[auto] ✅ Prompt sent successfully via button click');
+            return true;
+          } else {
+            console.log('[auto] ⌨️ No send button found, trying Enter key...');
+            
+            // Try different Enter key approaches
+            const enterEvents = [
+              new KeyboardEvent('keydown', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+                cancelable: true
+              }),
+              new KeyboardEvent('keypress', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+                cancelable: true
+              }),
+              new KeyboardEvent('keyup', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+                cancelable: true
+              })
+            ];
+            
+            for (const event of enterEvents) {
+              input.dispatchEvent(event);
+            }
+            
+            console.log('[auto] ✅ Prompt sent via Enter key');
+            return true;
+          }
+        } catch (sendError) {
+          console.error('[auto] ❌ Error sending prompt:', sendError);
+          return false;
         }
-      }
+      }, 100); // Small delay for focus to take effect
       
-      if (sendButton) {
-        sendButton.click();
-        console.log('[auto] ✅ Prompt sent successfully');
-      } else {
-        const enterEvent = new KeyboardEvent('keydown', {
-          key: 'Enter',
-          code: 'Enter',
-          bubbles: true,
-          cancelable: true
-        });
-        input.dispatchEvent(enterEvent);
-        console.log('[auto] ✅ Prompt sent via Enter key');
-      }
-      
-      return true;
+      return true; // Return true immediately, actual sending happens in setTimeout
     } else {
+      console.log('[auto] ❌ No input field available for sending prompt');
       return false;
     }
   } catch (error) {
