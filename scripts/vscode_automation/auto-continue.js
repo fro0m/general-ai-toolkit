@@ -475,6 +475,14 @@ function sendPrompt() {
       const input = isInputReady();
       
       if (input) {
+        const previouslyFocusedElement = document.activeElement;
+        if (previouslyFocusedElement) {
+            console.log('[auto] 🧠 Storing previously focused element:', {
+                tag: previouslyFocusedElement.tagName,
+                id: previouslyFocusedElement.id,
+                className: previouslyFocusedElement.className
+            });
+        }
         console.log('[auto] 📝 Input field found, preparing to send prompt...');
         console.log('[auto] 📝 Input details:', {
           tag: input.tagName,
@@ -779,6 +787,18 @@ function sendPrompt() {
           }
           
           console.log('[auto] ✅ Prompt sent via Enter key combinations');
+        }
+
+        if (previouslyFocusedElement && previouslyFocusedElement !== document.body && previouslyFocusedElement !== input && typeof previouslyFocusedElement.focus === 'function') {
+            console.log('[auto] ↩️ Restoring focus to previous element:', previouslyFocusedElement);
+            setTimeout(() => {
+                try {
+                    previouslyFocusedElement.focus();
+                    console.log('[auto] ✅ Focus restored successfully.');
+                } catch (e) {
+                    console.error('[auto] ❌ Error restoring focus:', e);
+                }
+            }, 100);
         }
       }, 200); // Increased delay to ensure text is processed
       

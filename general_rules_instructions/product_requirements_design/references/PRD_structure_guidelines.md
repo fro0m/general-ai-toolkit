@@ -45,7 +45,7 @@ This document provides guidelines for creating comprehensive Product Requirement
 
 ## 7. User Stories or Use Cases
 - **User Stories**: Write scenarios from the user's perspective (e.g., "As a [user], I want to [action] so that [benefit].").
-- **Use Cases**: Describe specific interactions between the user and the product.
+- **Use Cases**: Describe multiple specific interactions between the user and the product. This must include not only the "happy path" but also corner cases, error states, and adversarial use cases where a user might try to misuse or break the feature (e.g., by entering invalid data, performing actions out of sequence, etc.).
 
 ## 8. Design and UX Considerations
 - **Design Principles**: Outline the guiding principles for the product's design that align with user needs and business goals.
@@ -76,7 +76,13 @@ This document provides guidelines for creating comprehensive Product Requirement
 ## 13. Feature Subsections
 - **Description**: Provide a detailed explanation of the feature subsection focused on user value.
 - **Goal**: State the specific user-centered goal of the feature (what problem it solves for the user).
-- **Use Cases (UX)**: Describe all possible use cases, including:
+- **Use Cases (UX)**: Describe all possible use cases in detail. This must include the primary success scenarios, alternative paths, error handling, and corner cases. Specifically, include adversarial use cases from the perspective of a user attempting to intentionally break the feature. Examples include:
+  - Entering invalid or unexpected values into input fields.
+  - Rapidly clicking buttons or interface elements.
+  - Attempting to bypass required steps in a workflow.
+  - Using the feature in an unsupported environment or state.
+  
+  For each use case, describe:
   - BPMN diagrams (linked to `.bpmn` files).
   - Flow charts or use-case diagrams.
   - Steps sequence as a list of text entries with actions from the user's perspective.
