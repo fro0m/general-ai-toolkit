@@ -289,11 +289,24 @@ function isInputReady() {
     console.log('[auto] 🔍 Checking for input field...');
     
     const inputSelectors = [
-      // VS Code Copilot Chat specific selectors
+      // VS Code Copilot Chat specific selectors (based on source analysis)
+      '.interactive-input-part .chat-editor-container .interactive-input-editor textarea',
+      '.interactive-input-part .chat-editor-container textarea',
+      '.interactive-input-part .monaco-editor textarea',
+      '.chat-input-container .monaco-editor textarea',
+      '.chat-editor-container .monaco-editor textarea',
+      '.interactive-input-editor textarea',
+      
+      // Generic chat input selectors
       'div[role="textbox"][contenteditable="true"]',
       '.interactive-input .monaco-editor textarea',
       '.chat-input .monaco-editor textarea',
       '.copilot-chat .monaco-editor textarea',
+      
+      // Broader Monaco editor search within chat context
+      '.interactive-input-part textarea',
+      '.chat-input-container textarea',
+      '.interactive-session textarea',
       
       // Generic input selectors
       'textarea[placeholder*="Ask"]',
@@ -303,25 +316,19 @@ function isInputReady() {
       'textarea[aria-label*="Ask"]',
       'textarea[aria-label*="Chat"]',
       
-      // Monaco editor inputs
+      // Monaco specific
       '.monaco-inputbox input',
       '.monaco-editor textarea',
       '.monaco-editor .view-line',
-      
-      // Chat container inputs
-      '.chat-input textarea',
-      '.copilot-chat-input textarea',
-      '.interactive-input textarea',
-      '.interactive-input-part textarea',
-      '.chat-request-part textarea',
       
       // Broader search for any contenteditable or textarea in chat areas
       '.chat-container [contenteditable="true"]',
       '.copilot-chat [contenteditable="true"]',
       '.interactive-session [contenteditable="true"]',
+      '.interactive-input-part [contenteditable="true"]',
+      '.chat-input-container [contenteditable="true"]',
       '.chat-container textarea',
-      '.copilot-chat textarea',
-      '.interactive-session textarea'
+      '.copilot-chat textarea'
     ];
     
     for (const selector of inputSelectors) {
@@ -332,12 +339,11 @@ function isInputReady() {
         for (let i = 0; i < inputs.length; i++) {
           const input = inputs[i];
           
-          // Check if disabled
-          const isDisabled = input.getAttribute('aria-disabled') === 'true' || 
-                           input.disabled || 
-                           input.getAttribute('disabled') !== null ||
-                           input.readOnly ||
-                           input.getAttribute('readonly') !== null;
+          // Check if disabled (but be more lenient for chat inputs)
+          const isExplicitlyDisabled = input.getAttribute('aria-disabled') === 'true' || 
+                                     input.disabled === true || 
+                                     input.getAttribute('disabled') === 'disabled' ||
+                                     input.getAttribute('readonly') === 'readonly';
           
           // Check visibility
           const rect = input.getBoundingClientRect();
@@ -348,11 +354,19 @@ function isInputReady() {
                            style.visibility !== 'hidden' &&
                            style.opacity !== '0';
           
-          // Check if it's in a relevant chat context
-          const inChatContext = input.closest('.chat-container, .copilot-chat, .interactive-session, .interactive-input, .chat-input') ||
-                               input.matches('.monaco-editor textarea, [role="textbox"]');
+          // Check if it's in a relevant chat context (more permissive)
+          const inChatContext = input.closest('.chat-container, .copilot-chat, .interactive-session, .interactive-input, .chat-input, .interactive-input-part, .chat-input-container, .chat-editor-container') ||
+                               input.matches('.monaco-editor textarea, [role="textbox"], .interactive-input-editor textarea') ||
+                               input.classList.contains('interactive-input-editor');
           
-          if (!isDisabled && isVisible && inChatContext) {
+          // For chat inputs, also check if the parent container suggests it's an input area
+          const hasInputContext = input.closest('.editor-container, .input-container, .chat-editor-container, .interactive-input-editor') ||
+                                 input.parentElement?.classList.contains('monaco-editor') ||
+                                 input.parentElement?.classList.contains('editor-container');
+          
+          const isGoodCandidate = !isExplicitlyDisabled && isVisible && (inChatContext || hasInputContext);
+          
+          if (isGoodCandidate) {
             const inputInfo = {
               tag: input.tagName,
               type: input.type || 'none',
@@ -360,20 +374,24 @@ function isInputReady() {
               ariaLabel: input.getAttribute('aria-label') || '',
               contentEditable: input.contentEditable,
               selector: selector,
-              rect: {width: rect.width, height: rect.height}
+              classes: input.className,
+              rect: {width: rect.width, height: rect.height},
+              disabled: isExplicitlyDisabled,
+              context: input.closest('.interactive-input-part, .chat-input-container, .monaco-editor')?.className || 'none'
             };
             console.log('[auto] ✅ Found ready input field:', inputInfo);
             return input;
           } else {
             const rejectReason = !isVisible ? 'not visible' : 
-                               isDisabled ? 'disabled' : 
-                               !inChatContext ? 'not in chat context' : 'unknown';
+                               isExplicitlyDisabled ? 'explicitly disabled' : 
+                               (!inChatContext && !hasInputContext) ? 'not in chat context' : 'unknown';
             console.log(`[auto] 🟠 Input rejected (${rejectReason}):`, {
               tag: input.tagName,
-              disabled: isDisabled,
+              disabled: isExplicitlyDisabled,
               visible: isVisible,
-              inContext: inChatContext,
-              selector: selector
+              inContext: inChatContext || hasInputContext,
+              selector: selector,
+              classes: input.className.substring(0, 50)
             });
           }
         }
@@ -383,14 +401,43 @@ function isInputReady() {
       }
     }
     
-    // Final fallback: search for any focusable element that could be an input
+    // Enhanced fallback: search more broadly for any focusable element in chat areas
     try {
-      console.log('[auto] 🔍 Fallback: searching for any focusable input elements...');
+      console.log('[auto] 🔍 Enhanced fallback: searching for any chat input elements...');
+      
+      // First, look specifically in interactive input parts
+      const interactiveInputParts = Array.from(document.querySelectorAll('.interactive-input-part, .chat-input-container, .chat-editor-container, .interactive-input-editor'));
+      for (const container of interactiveInputParts) {
+        const allFocusable = Array.from(container.querySelectorAll('input, textarea, [contenteditable="true"], [tabindex], .monaco-editor textarea'));
+        
+        const bestMatch = allFocusable.find(el => {
+          const rect = el.getBoundingClientRect();
+          const isVisible = rect.width > 0 && rect.height > 0 && el.offsetParent !== null;
+          const looksLikeInput = el.tagName === 'TEXTAREA' || 
+                                el.tagName === 'INPUT' || 
+                                el.contentEditable === 'true' ||
+                                el.getAttribute('role') === 'textbox';
+          
+          return isVisible && looksLikeInput;
+        });
+        
+        if (bestMatch) {
+          console.log('[auto] ✅ Using enhanced fallback input:', {
+            tag: bestMatch.tagName,
+            contentEditable: bestMatch.contentEditable,
+            role: bestMatch.getAttribute('role'),
+            container: container.className
+          });
+          return bestMatch;
+        }
+      }
+      
+      // Final fallback: any visible input-like element in workbench
       const allFocusable = Array.from(document.querySelectorAll('input, textarea, [contenteditable="true"], [tabindex]'));
       const chatFocusable = allFocusable.filter(el => {
         const rect = el.getBoundingClientRect();
         const isVisible = rect.width > 0 && rect.height > 0 && el.offsetParent !== null;
-        const inChatArea = el.closest('.chat-container, .copilot-chat, .interactive-session, .monaco-workbench');
+        const inChatArea = el.closest('.chat-container, .copilot-chat, .interactive-session, .monaco-workbench, .interactive-input-part');
         const looksLikeInput = el.tagName === 'TEXTAREA' || 
                               el.tagName === 'INPUT' || 
                               el.contentEditable === 'true' ||
@@ -402,7 +449,7 @@ function isInputReady() {
       if (chatFocusable.length > 0) {
         console.log(`[auto] 📋 Found ${chatFocusable.length} focusable elements in chat areas`);
         const bestMatch = chatFocusable[0]; // Take the first one
-        console.log('[auto] ✅ Using fallback input:', {
+        console.log('[auto] ✅ Using final fallback input:', {
           tag: bestMatch.tagName,
           contentEditable: bestMatch.contentEditable,
           role: bestMatch.getAttribute('role')
@@ -422,194 +469,329 @@ function isInputReady() {
 }
 
 function sendPrompt() {
-  try {
-    const prompt = "Continue executing the current task if it exists or do tasks on the dartboard iteratively until no uncompleted tasks left. Use build_run_rules, general, product_requirements_design instructions.md files.";
-    const input = isInputReady();
-    
-    if (input) {
-      console.log('[auto] 📝 Input field found, preparing to send prompt...');
+  return new Promise(async (resolve) => {
+    try {
+      const prompt = "Continue executing the current task if it exists or do tasks on the dartboard iteratively until no uncompleted tasks left. Use build_run_rules, general, product_requirements_design instructions.md files.";
+      const input = isInputReady();
       
-      // Focus the input first
-      input.focus();
+      if (input) {
+        console.log('[auto] 📝 Input field found, preparing to send prompt...');
+        console.log('[auto] 📝 Input details:', {
+          tag: input.tagName,
+          type: input.type,
+          contentEditable: input.contentEditable,
+          classes: input.className.substring(0, 100)
+        });
+        
+        // Ensure the input is properly focused before entering text
+        console.log('[auto] 🎯 Ensuring input field is focused...');
+        
+        // For Monaco editors, we might need to focus the parent container first
+        const editorContainer = input.closest('.monaco-editor');
+        const chatContainer = input.closest('.interactive-input-part, .chat-input-container, .chat-editor-container');
+        
+        // Focus sequence: container -> editor -> input
+        if (chatContainer) {
+          chatContainer.focus();
+          console.log('[auto] ✅ Focused chat container');
+        }
+        
+        if (editorContainer) {
+          editorContainer.focus();
+          console.log('[auto] ✅ Focused editor container');
+        }
+        
+        // Focus the input element itself
+        input.focus();
+        console.log('[auto] ✅ Focused input element');
+        
+        // Dispatch focus event to ensure all handlers are triggered
+        const focusEvent = new FocusEvent('focus', { bubbles: true });
+        input.dispatchEvent(focusEvent);
+        
+        // For Monaco editors, also try to set cursor position
+        const isMonaco = input.closest('.monaco-editor') || input.classList.contains('monaco-editor');
+        if (isMonaco) {
+          // Try to trigger Monaco focus handlers
+          const clickEvent = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            view: window
+          });
+          input.dispatchEvent(clickEvent);
+          console.log('[auto] ✅ Triggered Monaco focus via click');
+        }
+        
+        // Wait a moment to ensure focus is established
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // For Monaco editors, we need to handle them differently
+        const isMonacoEditor = input.closest('.monaco-editor') || input.classList.contains('monaco-editor');
+      const isInteractiveInputEditor = input.closest('.interactive-input-editor') || input.classList.contains('interactive-input-editor');
       
-      // Clear any existing content
-      if (input.contentEditable === 'true') {
-        input.textContent = '';
-        input.innerHTML = '';
-      } else {
-        input.value = '';
-      }
-      
-      // Small delay to ensure focus
-      setTimeout(() => {
-        try {
-          // Set the prompt text
-          if (input.contentEditable === 'true') {
-            input.textContent = prompt;
-            input.innerHTML = prompt;
-            
-            // Dispatch input events for contenteditable
-            const inputEvent = new InputEvent('input', {
-              bubbles: true,
-              cancelable: true,
-              data: prompt
-            });
-            input.dispatchEvent(inputEvent);
-            
-            const changeEvent = new Event('change', {
+      if (isMonacoEditor || isInteractiveInputEditor) {
+        console.log('[auto] 🎯 Detected Monaco editor, using Monaco-specific approach...');
+        
+        // Try to find the Monaco editor instance
+        let monacoInstance = null;
+        const editorContainer = input.closest('.monaco-editor');
+        if (editorContainer && editorContainer._monacoEditor) {
+          monacoInstance = editorContainer._monacoEditor;
+        }
+        
+        // Alternative: try to trigger input via typing simulation
+        const typeText = (text) => {
+          for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            const keyboardEvent = new KeyboardEvent('keydown', {
+              key: char,
+              code: `Key${char.toUpperCase()}`,
               bubbles: true,
               cancelable: true
             });
-            input.dispatchEvent(changeEvent);
+            input.dispatchEvent(keyboardEvent);
             
-            // Also try composition events for Monaco editor
-            const compositionStartEvent = new CompositionEvent('compositionstart', { bubbles: true });
-            const compositionUpdateEvent = new CompositionEvent('compositionupdate', { bubbles: true, data: prompt });
-            const compositionEndEvent = new CompositionEvent('compositionend', { bubbles: true, data: prompt });
-            
-            input.dispatchEvent(compositionStartEvent);
-            input.dispatchEvent(compositionUpdateEvent);
-            input.dispatchEvent(compositionEndEvent);
-            
-          } else {
-            input.value = prompt;
-            
-            // Dispatch events for regular inputs
-            const inputEvent = new Event('input', { bubbles: true });
-            const changeEvent = new Event('change', { bubbles: true });
-            const keyupEvent = new KeyboardEvent('keyup', { bubbles: true });
-            
+            const inputEvent = new InputEvent('input', {
+              bubbles: true,
+              cancelable: true,
+              data: char
+            });
             input.dispatchEvent(inputEvent);
-            input.dispatchEvent(changeEvent);
+            
+            const keyupEvent = new KeyboardEvent('keyup', {
+              key: char,
+              code: `Key${char.toUpperCase()}`,
+              bubbles: true,
+              cancelable: true
+            });
             input.dispatchEvent(keyupEvent);
           }
+        };
+        
+        // Clear existing content first
+        if (monacoInstance && monacoInstance.setValue) {
+          monacoInstance.setValue('');
+          setTimeout(() => {
+            monacoInstance.setValue(prompt);
+            console.log('[auto] ✅ Set prompt via Monaco instance');
+          }, 50);
+        } else {
+          // Fallback: try direct value setting and simulate typing
+          if (input.value !== undefined) {
+            input.value = '';
+          }
+          if (input.textContent !== undefined) {
+            input.textContent = '';
+          }
           
-          console.log('[auto] ✅ Prompt text set, now looking for send button...');
+          setTimeout(() => {
+            try {
+              if (input.value !== undefined) {
+                input.value = prompt;
+              }
+              if (input.textContent !== undefined) {
+                input.textContent = prompt;
+              }
+              
+              // Simulate typing for Monaco
+              typeText(prompt);
+              console.log('[auto] ✅ Set prompt via simulation');
+            } catch (e) {
+              console.log('[auto] ⚠️ Error in typing simulation:', e.message);
+            }
+          }, 50);
+        }
+      } else {
+        // Standard input handling
+        console.log('[auto] 📝 Using standard input approach...');
+        
+        // Clear any existing content
+        if (input.contentEditable === 'true') {
+          input.textContent = '';
+          input.innerHTML = '';
+        } else {
+          input.value = '';
+        }
+        
+        // Set the prompt text
+        if (input.contentEditable === 'true') {
+          input.textContent = prompt;
+          input.innerHTML = prompt;
           
-          // Enhanced send button detection
-          const sendSelectors = [
-            // Specific VS Code send buttons
-            'button[aria-label*="Send"]:not([disabled])',
-            'button[title*="Send"]:not([disabled])',
-            'button[aria-label*="Submit"]:not([disabled])',
-            'button[title*="Submit"]:not([disabled])',
-            
-            // Generic submit buttons
-            'button[type="submit"]:not([disabled])',
-            '.send-button:not([disabled])',
-            '.submit-button:not([disabled])',
-            
-            // Monaco and chat specific
-            '.chat-input button:not([disabled])',
-            '.interactive-input-part button:not([disabled])',
-            '.chat-request-part button:not([disabled])',
-            '.copilot-chat button:not([disabled])',
-            '.action-item button[title*="Send"]:not([disabled])',
-            
-            // Icon buttons (often send buttons are just icons)
-            'button.monaco-button:not([disabled])',
-            'button[class*="send"]:not([disabled])',
-            'button[class*="submit"]:not([disabled])'
+          // Dispatch comprehensive events for contenteditable
+          const events = [
+            new Event('focus', { bubbles: true }),
+            new CompositionEvent('compositionstart', { bubbles: true }),
+            new CompositionEvent('compositionupdate', { bubbles: true, data: prompt }),
+            new CompositionEvent('compositionend', { bubbles: true, data: prompt }),
+            new InputEvent('input', { bubbles: true, cancelable: true, data: prompt }),
+            new Event('change', { bubbles: true, cancelable: true }),
+            new KeyboardEvent('keyup', { bubbles: true })
           ];
           
-          let sendButton = null;
-          for (const selector of sendSelectors) {
-            try {
-              const candidates = Array.from(document.querySelectorAll(selector));
-              console.log(`[auto] 🔍 Found ${candidates.length} candidates for selector: ${selector}`);
+          events.forEach(event => input.dispatchEvent(event));
+        } else {
+          input.value = prompt;
+          
+          // Dispatch events for regular inputs
+          const events = [
+            new Event('focus', { bubbles: true }),
+            new Event('input', { bubbles: true }),
+            new Event('change', { bubbles: true }),
+            new KeyboardEvent('keyup', { bubbles: true })
+          ];
+          
+          events.forEach(event => input.dispatchEvent(event));
+        }
+      }
+      
+      // Now look for send button with a delay to allow text to be processed
+      setTimeout(() => {
+        console.log('[auto] ✅ Prompt text set, now looking for send button...');
+        
+        // Enhanced send button detection with VS Code specific selectors
+        const sendSelectors = [
+          // VS Code Copilot Chat specific send buttons
+          '.interactive-input-part button[aria-label*="Send"]:not([disabled])',
+          '.interactive-input-part button[title*="Send"]:not([disabled])',
+          '.chat-input-container button[aria-label*="Send"]:not([disabled])',
+          '.chat-input-container button[title*="Send"]:not([disabled])',
+          '.chat-input-toolbars button:not([disabled])',
+          '.interactive-input-and-side-toolbar button:not([disabled])',
+          
+          // Generic VS Code send buttons
+          'button[aria-label*="Send"]:not([disabled])',
+          'button[title*="Send"]:not([disabled])',
+          'button[aria-label*="Submit"]:not([disabled])',
+          'button[title*="Submit"]:not([disabled])',
+          
+          // Generic submit buttons
+          'button[type="submit"]:not([disabled])',
+          '.send-button:not([disabled])',
+          '.submit-button:not([disabled])',
+          
+          // Monaco and chat specific
+          '.chat-input button:not([disabled])',
+          '.interactive-input-part button:not([disabled])',
+          '.copilot-chat button:not([disabled])',
+          '.action-item button[title*="Send"]:not([disabled])',
+          
+          // Icon buttons (often send buttons are just icons)
+          'button.monaco-button:not([disabled])',
+          'button[class*="send"]:not([disabled])',
+          'button[class*="submit"]:not([disabled])'
+        ];
+        
+        let sendButton = null;
+        for (const selector of sendSelectors) {
+          try {
+            const candidates = Array.from(document.querySelectorAll(selector));
+            console.log(`[auto] 🔍 Found ${candidates.length} candidates for selector: ${selector}`);
+            
+            sendButton = candidates.find(btn => {
+              const rect = btn.getBoundingClientRect();
+              const buttonText = (btn.textContent || btn.getAttribute('aria-label') || btn.getAttribute('title') || '').toLowerCase();
+              const looksLikeSend = buttonText.includes('send') || 
+                                  buttonText.includes('submit') || 
+                                  btn.type === 'submit' ||
+                                  btn.classList.contains('send-button') ||
+                                  btn.classList.contains('submit-button');
+              const isVisible = rect.width > 0 && rect.height > 0;
+              const inChatContext = btn.closest('.chat-container, .copilot-chat, .interactive-session, .interactive-input, .chat-input, .interactive-input-part');
               
-              sendButton = candidates.find(btn => {
-                const rect = btn.getBoundingClientRect();
-                const buttonText = (btn.textContent || btn.getAttribute('aria-label') || btn.getAttribute('title') || '').toLowerCase();
-                const looksLikeSend = buttonText.includes('send') || 
-                                    buttonText.includes('submit') || 
-                                    btn.type === 'submit' ||
-                                    btn.classList.contains('send-button') ||
-                                    btn.classList.contains('submit-button');
-                const isVisible = rect.width > 0 && rect.height > 0;
-                const inChatContext = btn.closest('.chat-container, .copilot-chat, .interactive-session, .interactive-input, .chat-input');
-                
-                const isGoodCandidate = isVisible && (looksLikeSend || inChatContext);
-                
-                if (isGoodCandidate) {
-                  console.log(`[auto] ✅ Good send button candidate:`, {
-                    text: buttonText,
-                    selector: selector,
-                    looksLikeSend: looksLikeSend,
-                    inContext: !!inChatContext
-                  });
-                }
-                
-                return isGoodCandidate;
-              });
+              // For VS Code, also accept buttons in input toolbars even without "send" text
+              const inInputToolbar = btn.closest('.chat-input-toolbars, .interactive-input-and-side-toolbar, .interactive-input-part');
               
-              if (sendButton) {
-                console.log(`[auto] 🎯 Found send button with selector: ${selector}`);
-                break;
+              const isGoodCandidate = isVisible && (looksLikeSend || inChatContext || inInputToolbar);
+              
+              if (isGoodCandidate) {
+                console.log(`[auto] ✅ Good send button candidate:`, {
+                  text: buttonText,
+                  selector: selector,
+                  looksLikeSend: looksLikeSend,
+                  inContext: !!inChatContext,
+                  inToolbar: !!inInputToolbar
+                });
               }
-            } catch (e) {
-              continue;
+              
+              return isGoodCandidate;
+            });
+            
+            if (sendButton) {
+              console.log(`[auto] 🎯 Found send button with selector: ${selector}`);
+              break;
             }
+          } catch (e) {
+            continue;
+          }
+        }
+        
+        if (sendButton) {
+          console.log('[auto] 🖱️ Clicking send button...');
+          sendButton.click();
+          console.log('[auto] ✅ Prompt sent successfully via button click');
+        } else {
+          console.log('[auto] ⌨️ No send button found, trying multiple Enter key approaches...');
+          
+          // Try different Enter key approaches for Monaco/VS Code
+          const enterEvents = [
+            // Standard Enter
+            new KeyboardEvent('keydown', {
+              key: 'Enter',
+              code: 'Enter',
+              keyCode: 13,
+              which: 13,
+              bubbles: true,
+              cancelable: true
+            }),
+            // Ctrl+Enter (common for send in chat)
+            new KeyboardEvent('keydown', {
+              key: 'Enter',
+              code: 'Enter',
+              keyCode: 13,
+              which: 13,
+              ctrlKey: true,
+              bubbles: true,
+              cancelable: true
+            }),
+            // Just keypress
+            new KeyboardEvent('keypress', {
+              key: 'Enter',
+              code: 'Enter',
+              keyCode: 13,
+              which: 13,
+              bubbles: true,
+              cancelable: true
+            }),
+            // Keyup
+            new KeyboardEvent('keyup', {
+              key: 'Enter',
+              code: 'Enter',
+              keyCode: 13,
+              which: 13,
+              bubbles: true,
+              cancelable: true
+            })
+          ];
+          
+          for (const event of enterEvents) {
+            input.dispatchEvent(event);
           }
           
-          if (sendButton) {
-            console.log('[auto] 🖱️ Clicking send button...');
-            sendButton.click();
-            console.log('[auto] ✅ Prompt sent successfully via button click');
-            return true;
-          } else {
-            console.log('[auto] ⌨️ No send button found, trying Enter key...');
-            
-            // Try different Enter key approaches
-            const enterEvents = [
-              new KeyboardEvent('keydown', {
-                key: 'Enter',
-                code: 'Enter',
-                keyCode: 13,
-                which: 13,
-                bubbles: true,
-                cancelable: true
-              }),
-              new KeyboardEvent('keypress', {
-                key: 'Enter',
-                code: 'Enter',
-                keyCode: 13,
-                which: 13,
-                bubbles: true,
-                cancelable: true
-              }),
-              new KeyboardEvent('keyup', {
-                key: 'Enter',
-                code: 'Enter',
-                keyCode: 13,
-                which: 13,
-                bubbles: true,
-                cancelable: true
-              })
-            ];
-            
-            for (const event of enterEvents) {
-              input.dispatchEvent(event);
-            }
-            
-            console.log('[auto] ✅ Prompt sent via Enter key');
-            return true;
-          }
-        } catch (sendError) {
-          console.error('[auto] ❌ Error sending prompt:', sendError);
-          return false;
+          console.log('[auto] ✅ Prompt sent via Enter key combinations');
         }
-      }, 100); // Small delay for focus to take effect
+      }, 200); // Increased delay to ensure text is processed
       
-      return true; // Return true immediately, actual sending happens in setTimeout
+      resolve(true);
     } else {
       console.log('[auto] ❌ No input field available for sending prompt');
-      return false;
+      resolve(false);
     }
   } catch (error) {
     console.error('[auto] ❌ Error in sendPrompt:', error);
-    return false;
+    resolve(false);
   }
+  });
 }
 
 function findAndClickButton() {
@@ -860,7 +1042,7 @@ async function checkAndContinue() {
         const inputElement = isInputReady();
         if (inputElement) {
           console.log(`[auto][${checkId}] 📝 Input field ready, attempting to send continuation prompt...`);
-          const promptSent = sendPrompt();
+          const promptSent = await sendPrompt();
           if (promptSent) {
             actionTaken = true;
             console.log(`[auto][${checkId}] ✅ Action taken: Prompt sent successfully`);
