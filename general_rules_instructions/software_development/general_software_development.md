@@ -56,6 +56,28 @@ For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{var
 - Both documents must **always accurately represent the current state** of the project after any modifications
 
 ### 3. Root Cause Analysis and Problem-Solving Approach
+
+**CRITICAL: Never Disable or Ignore Problems**
+When encountering build errors, test failures, or other issues in any part of the project:
+
+- **NEVER disable building of specific components or modules** (e.g., disabling tests for specific libraries, excluding problematic code from builds)
+- **NEVER ignore compilation warnings or errors** by commenting out problematic code or adding compiler pragmas to suppress warnings
+- **NEVER skip or disable failing tests** unless they are explicitly marked as known issues with tracking tickets
+- **NEVER use workarounds that bypass fundamental problems** without addressing the underlying cause
+
+**Required Approach for All Issues:**
+1. **Investigate thoroughly**: Analyze error messages, logs, and stack traces to understand the root cause
+2. **Research the problem**: Look up documentation, known issues, and best practices for the specific technology or library
+3. **Fix the actual cause**: Address the underlying issue rather than symptoms
+4. **Verify the fix**: Ensure the solution resolves the problem completely and doesn't introduce new issues
+5. **Document the solution**: Record what the problem was and how it was resolved for future reference
+
+**Examples of Proper Problem-Solving:**
+- **Build errors**: Fix missing dependencies, incorrect configurations, or code issues - don't exclude modules from building
+- **Test failures**: Debug and fix the failing functionality - don't disable the tests
+- **Library integration issues**: Properly configure and integrate libraries - don't comment out their usage
+- **Platform compatibility problems**: Implement proper cross-platform solutions - don't disable features for specific platforms
+
 When fixing bugs or addressing issues:
 - **Primary approach**: Identify and fix the root cause of the problem
 - **Avoid**: Adding defensive code, excessive error handling, or workarounds that mask the underlying issue
@@ -112,6 +134,13 @@ Use all coding guidelines from the `{CodingGuidelinesURLs}` list, which can cont
 - If tests fail: Debug and fix underlying issues until all unit tests pass
 - If integration issues arise: Resolve compatibility problems before proceeding
 - **Do not proceed** to the next development phase until current issues are resolved
+
+**ABSOLUTE PROHIBITION**: 
+- **NEVER disable failing builds** by excluding components, modules, or dependencies from the build process
+- **NEVER comment out or remove failing tests** to make the test suite pass
+- **NEVER use build flags or preprocessor directives** to bypass compilation errors without fixing the underlying issues
+- **NEVER downgrade dependencies or disable features** to avoid addressing compatibility problems
+- Every build error and test failure MUST be resolved through proper fixes, not avoidance tactics
 
 ## Documentation and Version Control
 
