@@ -483,6 +483,15 @@ function sendPrompt() {
                 className: previouslyFocusedElement.className
             });
         }
+
+        // Check if the input already contains the prompt
+        const currentInputValue = input.value || input.textContent;
+        if (currentInputValue.trim() === prompt.trim()) {
+          console.log('[auto] 📝 Prompt already exists in the input field. Skipping send.');
+          resolve(true);
+          return;
+        }
+
         console.log('[auto] 📝 Input field found, preparing to send prompt...');
         console.log('[auto] 📝 Input details:', {
           tag: input.tagName,
