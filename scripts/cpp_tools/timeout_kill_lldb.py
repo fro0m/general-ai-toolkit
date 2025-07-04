@@ -143,7 +143,7 @@ def check_process_state(debugger, process):
     
     return False
 
-def kill_if_timeout(debugger, process, timeout=60):
+def kill_if_timeout(debugger, process, timeout=360):
     """Monitor the process and kill it if it doesn't exit within the specified timeout."""
     global _monitoring_active
     
@@ -300,7 +300,7 @@ def setup_timeout(debugger, command, result, internal_dict):
     monitor_thread.daemon = True
     monitor_thread.start()
     
-    print(f"Process monitoring active (timeout: 60 seconds)")
+    print(f"Process monitoring active (timeout: 360 seconds)")
 
 def auto_activate():
     """Automatically activate the timeout script when imported."""
@@ -314,7 +314,7 @@ def auto_activate():
         
         if target:
             process = target.GetProcess()
-            if process and process.IsValid():
+            if process and process.IsValid() and process.GetState() not in [lldb.eStateInvalid, lldb.eStateUnloaded]:
                 setup_timeout(debugger, None, None, None)
                 return
         
@@ -329,9 +329,11 @@ def auto_activate():
                     target = debugger.GetSelectedTarget()
                     if target:
                         process = target.GetProcess()
-                        if process and process.IsValid() and process.GetState() != lldb.eStateInvalid:
-                            setup_timeout(debugger, None, None, None)
-                            return
+                        if process and process.IsValid() and process.GetState() not in [lldb.eStateInvalid, lldb.eStateUnloaded, lldb.eStateDetached]:
+                            # Make sure process is actually running or stopped (not just loaded)
+                            if process.GetState() in [lldb.eStateRunning, lldb.eStateStopped]:
+                                setup_timeout(debugger, None, None, None)
+                                return
                 except:
                     pass
                 
@@ -344,30 +346,31 @@ def auto_activate():
         monitor_thread.start()
         
     except Exception as e:
-        print(f"ERROR: Exception in auto_activate: {str(e)}")
+        # Don't print errors during import - this is expected during startup
+        pass
 
 def start_monitoring():
     """Manual function to start monitoring - call this directly."""
     try:
         debugger = lldb.debugger
         if not debugger:
-            print("ERROR: No debugger instance available")
+            print("INFO: No debugger instance available yet")
             return
             
         target = debugger.GetSelectedTarget()
         if not target:
-            print("ERROR: No target selected")
+            print("INFO: No target selected yet")
             return
             
         process = target.GetProcess()
         if not process or not process.IsValid():
-            print("ERROR: No valid process available")
+            print("INFO: No valid process available yet")
             return
             
         setup_timeout(debugger, None, None, None)
         
     except Exception as e:
-        print(f"ERROR: Exception in start_monitoring: {str(e)}")
+        print(f"INFO: Exception in start_monitoring (normal during startup): {str(e)}")
 
 def __lldb_init_module(debugger, internal_dict):
     """Entry point for LLDB to load the script."""
@@ -382,11 +385,7 @@ if __name__ != '__main__':
     try:
         # Check if we're in an lldb context
         if 'lldb' in globals() and hasattr(lldb, 'debugger'):
-            # Try immediate activation first
-            start_monitoring()
-            
-            # If that fails, try the delayed approach
-            if not _monitoring_active:
-                auto_activate()
+            # Only use delayed activation to avoid premature process access
+            auto_activate()
     except:
         pass  # Silently fail if not in lldb context
