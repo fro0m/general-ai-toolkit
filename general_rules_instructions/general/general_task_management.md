@@ -23,7 +23,7 @@ For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{var
 Follow this workflow for managing tasks:
 
 1.  **Retrieve Task:**
-    *   Get the first uncompleted task from the Dart MCP server. Use `list_tasks` with `status: ["To-do", "Doing"]` for the active dartboard (either user-specified or the fallback `{DartboardID}`) unless the user explicitly requests a different dartboard.
+    *   Get the first uncompleted task from the Dart MCP server. Use `list_tasks` with `status: ["To-do", "Doing"]` and `dartboard: "{DartboardID}"` (using the user-specified dartboard if provided, otherwise the fallback) unless the user explicitly requests a different dartboard.
     *   If no uncompleted tasks are found, and you have processed at least one task in this cycle, the workflow is complete.
     *   If the Dart workspace or any tasks are not found initially, halt execution. Do not create new tasks or alter existing task descriptions.
 
@@ -61,7 +61,7 @@ Follow this workflow for managing tasks:
     *   Mark the completed task's status as "Done" using the Dart MCP server (e.g., via an `update_task` function).
 
 5.  **Refresh Task List:**
-    *   Re-fetch the list of tasks from the Dart MCP server for the workspace specified by `{DartboardID}` to ensure the task list is current.
+    *   Re-fetch the list of tasks from the Dart MCP server using `list_tasks` with `dartboard: "{DartboardID}"` to ensure the task list is current.
 
 6.  **Repeat Workflow:**
     *   Return to Step 1 to process the next uncompleted task. Continue this cycle until no uncompleted tasks remain.
@@ -88,4 +88,3 @@ Follow this workflow for managing tasks:
 # Path and URL Resolution
 
 *   If any file paths or URLs provided in prompts or documentation cannot be resolved or are not found, immediately halt operations and output an error message specifying the missing or unresolved resource.
-

@@ -1,127 +1,91 @@
-# Architecture Document: VS Code Copilot Auto-Continue
+# VS Code Copilot Auto-Continue: Software Architecture
 
 ## 1. Introduction
-This document provides the technical architecture for the `VS Code Copilot Auto-Continue` script. It details the system's components, their interactions, and the implementation strategy required to meet the product requirements. The architecture is designed to be a single, self-contained JavaScript file, injected into a browser environment, with a focus on simplicity, resilience, and minimal performance overhead.
+This document outlines the software architecture for the "VS Code Copilot Auto-Continue" script. It details the script's components, their interactions, and the overall design principles that ensure its functionality, maintainability, and resilience. This architecture is derived from the product requirements specified in the [Product Requirements Document](./vscode_auto_continue_product_requirements.md).
 
-## 2. Architectural Principles
-- **Simplicity**: The entire system is encapsulated within a single JavaScript file (`auto-continue.js`) to ensure ease of deployment and maintenance. There are no external dependencies or build steps.
-- **Resilience**: The script employs a multi-selector strategy to mitigate the risk of breakage due to minor UI changes in the target application (VS Code).
-- **Performance**: The design prioritizes low-impact, asynchronous operations and throttled checks to avoid degrading the user's browsing experience.
-- **Modularity**: Although a single file, the script is logically divided into distinct functional units: Configuration, State Management, DOM Interaction, and Control Flow.
+## 2. High-Level Architecture
+The script is designed as a single, self-contained JavaScript module that is injected into the VS Code Developer Tools console. It operates by periodically scanning the DOM of the Copilot Chat panel to detect actionable elements and idle states.
 
-## 3. System Components
-The system is composed of several key functions and data structures working in concert.
+The architecture is based on a simple, event-driven model orchestrated by a main loop. The core components are:
+- **A global `autoContinue` object**: Serves as the main namespace and entry point for the script.
+- **State Manager**: Manages the script's internal state (e.g., running or stopped).
+- **Configuration Module**: Centralizes all DOM selectors and hard-coded strings for easy updates.
+- **Main Loop**: The heart of the script, which orchestrates all actions.
+- **Action Modules**: A collection of functions, each responsible for a specific task like clicking a button or sending a prompt.
+- **Logging Utility**: Provides console feedback for debugging and monitoring.
 
-### 3.1. Configuration
-- **Constants**:
-    - `BUTTON_COOLDOWN_MS`: `3000` - An integer representing the minimum time in milliseconds between consecutive button clicks to prevent rapid-fire actions.
-    - `CHECK_INTERVAL`: `5000` - An integer defining the frequency in milliseconds of the main polling loop.
-    - `MAX_RETRIES`: `3` - An integer defining how many times the script will attempt to find an action before resetting.
-    - `AUTO_STOP_THRESHOLD`: `3` - An integer representing the number of consecutive fast tasks required to trigger an auto-stop.
-    - `FAST_TASK_DURATION_MS`: `20000` - An integer defining the maximum duration in milliseconds for a task to be considered "fast".
-    - `BUTTONS_TO_CLICK`: An array of objects, where each object defines a target button.
-        - `name`: A string for logging purposes (e.g., 'Continue').
-        - `selectors`: An array of CSS selector strings used to identify the button.
+## 3. Component Breakdown
 
-### 3.2. State Management
-- **Variables**:
-    - `lastClick`: A timestamp (integer) tracking the last successful button click.
-    - `isProcessing`: A boolean flag to prevent concurrent execution of the main logic.
-    - `intervalId`: A nullable integer holding the ID of the main `setInterval` loop.
-    - `observer`: A nullable `MutationObserver` instance.
-    - `retryCount`: An integer to track consecutive failed attempts to find an action.
-    - `debugMode`: A boolean to toggle verbose logging.
-    - `taskCompletionTimes`: An array of timestamps (integers) used to track the completion time of the last few tasks.
-    - `lastTaskStartTime`: A timestamp (integer) to mark when the AI last started processing.
+### 3.1. The `autoContinue` Object
+This is the main global object that encapsulates all the script's logic and data. It prevents pollution of the global namespace and provides a clear API.
 
-### 3.3. Core Functions (DOM Interaction)
-- **`isTaskActive()`**:
-    - **Purpose**: To determine if the AI is currently processing a request.
-    - **Implementation**: Queries the DOM for a predefined list of CSS selectors (`activeIndicators`) that signify a loading or processing state (e.g., `.codicon-loading`, `[aria-busy="true"]`). It filters for visible elements and returns `true` if any are found.
-    - **Returns**: `boolean`.
-- **`isInputReady()`**:
-    - **Purpose**: To find a usable chat input field.
-    - **Implementation**: Iterates through a list of CSS selectors (`inputSelectors`) to find a visible, enabled `textarea` or `contenteditable` element within the chat interface.
-    - **Returns**: A DOM element or `null`.
-- **`sendPrompt()`**:
-    - **Purpose**: To enter the continuation prompt into the chat input and submit it.
-    - **Implementation**:
-        1. Calls `isInputReady()` to get the input element.
-        2. Sets the `value` or `textContent` of the input to the hard-coded prompt string.
-        3. Dispatches `input`, `change`, and `keyup` events to simulate user entry.
-        4. Queries for a "Send" button and clicks it. If no button is found, it dispatches `keydown` events for the "Enter" key as a fallback.
-    - **Returns**: `Promise<boolean>`.
-- **`checkForAutoStop()`**:
-    - **Purpose**: To determine if the script should automatically stop based on task completion speed.
-    - **Implementation**:
-        1. Checks if `taskCompletionTimes` contains at least `AUTO_STOP_THRESHOLD` entries.
-        2. If so, it calculates the duration of the last `AUTO_STOP_THRESHOLD` tasks.
-        3. If all of these tasks have a duration less than `FAST_TASK_DURATION_MS`, it calls `autoContinue.stop()`.
-    - **Returns**: `void`.
-- **`findAndClickButton()`**:
-    - **Purpose**: To find and click one of the target action buttons.
-    - **Implementation**:
-        1. Checks if the `BUTTON_COOLDOWN_MS` has elapsed since `lastClick`.
-        2. Iterates through the `BUTTONS_TO_CLICK` array. For each button configuration, it queries the DOM using the associated `selectors`.
-        3. It finds the first visible, enabled button and dispatches a `click` event on it.
-        4. Sets the `data-auto-continue-clicked` attribute to prevent re-clicking the same button.
-    - **Returns**: `boolean`.
-
-### 3.4. Control Flow
-- **`init()`**:
-    - **Purpose**: To initialize the script and start the automation.
-    - **Implementation**:
-        1. Sets up the main `setInterval` loop, which calls `checkAndContinue` every `CHECK_INTERVAL` milliseconds.
-        2. Creates and starts a `MutationObserver` (`setupMutationObserver`) to trigger `checkAndContinue` on relevant DOM changes.
-        3. Exports the `autoContinue` object to the `window` scope.
-- **`checkAndContinue()`**:
-    - **Purpose**: The main logical loop of the script.
-    - **Implementation**:
-        1. Sets the `isProcessing` flag to `true`.
-        2. Calls `isTaskActive()`.
-        3. If a task is active, `lastTaskStartTime` is set.
-        4. If a task is *not* active:
-            a. If `lastTaskStartTime` is set, a task has just completed. The completion time is pushed to `taskCompletionTimes` and `lastTaskStartTime` is reset.
-            b. Calls `checkForAutoStop()`.
-            c. Calls `findAndClickButton()`.
-            d. If no button was clicked, it calls `sendPrompt()`.
-            e. If no action was taken, it increments `retryCount`.
-        5. Resets the `isProcessing` flag to `false`.
-- **`autoContinue` object**:
-    - **Purpose**: To expose public methods for controlling the script from the browser console.
-    - **Interface**:
-        - `start()`: Calls `init()`.
-        - `stop()`: Clears the interval and disconnects the observer.
-        - `restart()`: Calls `stop()` then `start()`.
-        - `debug()`: Logs the current state and configuration.
-
-## 4. Data Flow
-The data flow is cyclical and driven by the state of the VS Code UI.
-
-```mermaid
-graph TD
-    A[Start] --> B{checkAndContinue};
-    B --> C{isTaskActive?};
-    C -- Yes --> H[Set lastTaskStartTime];
-    H --> E[Wait for next interval/mutation];
-    C -- No --> I{Task just finished?};
-    I -- Yes --> J[Record completion time];
-    I -- No --> D;
-    J --> K{checkForAutoStop};
-    K -- Stop --> Z[End];
-    K -- Continue --> D{findAndClickButton};
-    D -- Button Found & Clicked --> E;
-    D -- No Button Found --> F{sendPrompt};
-    F -- Prompt Sent --> E;
-    F -- Input Not Ready --> G[Increment Retry Count];
-    G --> E;
-    E --> B;
+```javascript
+const autoContinue = {
+  config: { ... },
+  state: { ... },
+  start: function() { ... },
+  stop: function() { ... },
+  mainLoop: function() { ... },
+  // ... other private functions
+};
 ```
 
-## 5. Deployment and Execution
-- **Deployment**: The system is deployed by delivering the single `auto-continue.js` file.
-- **Execution**: The script is intended to be injected into the active VS Code web session via browser developer tools (e.g., the console) or a browser extension like Tampermonkey. It self-initializes upon execution.
+- **API**:
+    - `autoContinue.start()`: Initializes the script and starts the main loop. This is called automatically when the script is injected.
+    - `autoContinue.stop()`: Stops the main loop and cleans up any resources.
 
-## 6. Future Considerations
-- **Configuration via JSON**: To make the script more flexible, the configuration constants could be externalized into a JSON object that is passed to the `init` function. This would allow users to customize selectors and timings without editing the script's source code.
-- **State Machine**: For more complex scenarios, the simple `isProcessing` flag could be replaced with a more formal state machine (e.g., `IDLE`, `WAITING_FOR_AI`, `CLICKING_BUTTON`, `SENDING_PROMPT`) to make the control flow more robust.
+### 3.2. State Management
+The `state` object holds the script's current status.
+
+- **Properties**:
+    - `isRunning` (boolean): Indicates if the main loop is active.
+    - `timerId` (number): Stores the ID of the `setInterval` timer for the main loop, so it can be cleared by `stop()`.
+    - `lastActivityTime` (Date): Timestamp of the last detected AI activity. Used for idle detection.
+    - `shortTaskCount` (number): Counter for consecutive fast tasks, used for the auto-stop feature.
+
+### 3.3. Configuration Module
+The `config` object centralizes all constants, making the script easier to maintain, especially when the VS Code UI changes.
+
+- **Properties**:
+    - `selectors` (object): A nested object containing all CSS selectors for buttons (`continue`, `tryAgain`, `accept`, etc.) and other UI elements like the chat input field.
+    - `prompts` (object): Stores the predefined continuation prompt.
+    - `intervals` (object): Defines time intervals for the main loop and other time-based logic (e.g., idle timeout).
+
+### 3.4. Main Loop (`mainLoop`)
+This function is the core of the script's operation. It is executed repeatedly using `setInterval`.
+
+- **Logic**:
+    1.  Check if the script is in the `running` state. If not, exit.
+    2.  Call `checkForButtons()` to find and click any actionable buttons. If a button is clicked, reset the idle timer and exit the current loop iteration.
+    3.  If no buttons are found, call `checkForIdle()` to see if the AI has stalled.
+    4.  If the AI is idle, check if the chat input field is empty to avoid interfering with user input.
+    5.  If the input field is empty, call `sendContinuationPrompt()`.
+    6.  Call `autoStopLogic()` to check if the script should terminate itself.
+
+### 3.5. Action Functions
+These are specialized functions that perform a single, well-defined action.
+
+- `clickButton(selector)`: Finds an element by its selector and dispatches a `click` event.
+- `checkForButtons()`: Iterates through the button selectors in the `config` and calls `clickButton` if a match is found.
+- `checkForIdle()`: Checks if the time since `lastActivityTime` has exceeded the configured idle threshold.
+- `sendContinuationPrompt()`: Enters the continuation prompt into the chat input field and simulates a send action.
+- `autoStopLogic()`: Implements the heuristic for automatically stopping the script based on the `shortTaskCount` and task completion times.
+
+### 3.6. Logging
+A simple logging function that respects a debug flag.
+
+- `log(message, level)`: Prints a message to the console. If `level` is 'debug', it only prints if a debug flag is enabled.
+
+## 4. Data Flow
+The data flow is unidirectional and straightforward:
+
+1.  **Initialization**: The script is injected. `autoContinue.start()` is called, setting `state.isRunning` to `true` and starting the `mainLoop` via `setInterval`.
+2.  **DOM Interaction**: The `mainLoop` reads the DOM to detect UI elements.
+3.  **State Update**: Based on the DOM state, action functions are called. These actions may trigger changes in the UI. The script's internal `state` (e.g., `lastActivityTime`) is updated.
+4.  **User Interaction**: The user can manually stop the script by calling `autoContinue.stop()`, which sets `state.isRunning` to `false` and clears the timer.
+
+## 5. Error Handling and Resilience
+- **Selector Specificity**: Selectors are designed to be as specific as possible to avoid unintended clicks.
+- **Graceful Failure**: If a selector does not find an element, the script simply moves on without throwing an error. This makes it resilient to minor UI changes or variations.
+- **Manual Override**: The user always has the ability to stop the script immediately with `autoContinue.stop()`.
+- **UI Change Mitigation**: By centralizing selectors in the `config` object, updating the script to adapt to UI changes is a streamlined process.

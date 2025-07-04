@@ -2,7 +2,7 @@
 
 ## 1. Title and Overview
 - **Title**: VS Code Copilot Auto-Continue
-- **Overview**: This document outlines the product requirements for the "VS Code Copilot Auto-Continue" script, a browser-based automation tool designed to enhance the productivity of developers using VS Code's Copilot Chat. The script automates repetitive interactions, allowing for a seamless and uninterrupted workflow when generating code, receiving suggestions, or performing complex tasks with the AI assistant.
+- **Overview**: This document outlines the product requirements for the "VS Code Copilot Auto-Continue" script, a VS Code console-based automation tool designed to enhance the productivity of developers using VS Code's Copilot Chat. The script automates repetitive interactions, allowing for a seamless and uninterrupted workflow when generating code, receiving suggestions, or performing complex tasks with the AI assistant.
 
 ## 2. Version History
 | Version | Status                |
@@ -42,7 +42,7 @@
 - **In-Scope**:
     - Automatically clicking the "Continue", "Try Again", "Keep", and "Accept" buttons.
     - Detecting when the AI is idle and automatically sending a prompt to continue the current task.
-    - Providing console commands for starting, stopping, and restarting the automation.
+    - Providing a console command `autoContinue.stop()` for stopping the automation.
     - A debug mode to provide detailed logging of the script's actions.
     - Automatically stopping the script if it determines the AI has no more tasks.
 - **Out-of-Scope**:
@@ -54,19 +54,19 @@
 - **As a developer**, I want the script to automatically click the "Continue" button so that I can generate long files or code blocks without interruption.
 - **As a developer**, I want the script to automatically click "Try Again" when Copilot encounters an error so that the AI can recover and complete my request without my intervention.
 - **As a developer**, I want the script to automatically accept suggestions by clicking "Keep" or "Accept" so that I can maintain my workflow speed.
-- **As a developer**, I want the script to recognize when Copilot has stopped working and prompt it to continue, so I don't have to manually restart the task.
-- **As a developer**, I want the script to automatically stop itself when it seems like I'm done working, so it doesn't keep running in the background forever.
+- **As a developer**, I want the script to recognize when Copilot has stopped working and prompt it to continue, but only if the chat input field is empty, to avoid overwriting my own text.
+- **As a developer**, I want the script to automatically stop itself when it seems that after sending a prompt AI finishes the tasks less than 1 minue for several times in a row, so it doesn't keep running in the background forever.
 
 ## 8. Design and UX Considerations
 - **Design Principles**:
     - **Invisible and Unobtrusive**: The script should run in the background with no visible UI, providing a seamless experience.
     - **Reliable and Predictable**: The automation should be consistent and trustworthy, correctly identifying and acting on the intended elements.
     - **Zero Configuration**: The script should work out-of-the-box with no setup required from the user.
-- **User Flows**: The primary user flow is passive. The user works in VS Code as usual, and the script intervenes automatically when needed. The only active interactions are the console commands to control the script's execution.
+- **User Flows**: The script is run by injecting its contents into the VS Code Developer Tools console. Once running, the user flow is passive. The user works in VS Code as usual, and the script intervenes automatically when needed. The only active interaction is the `autoContinue.stop()` console command to terminate the script.
 
 ## 9. Technical Requirements
-- **Platform Requirements**: The script must be compatible with the latest stable version of Google Chrome and Microsoft Edge, running within the VS Code web environment.
-- **Performance Requirements**: The script must have a negligible impact on browser performance, with checks running efficiently in the background. The interval for checks should not be more frequent than every 5 seconds to avoid performance degradation.
+- **Platform Requirements**: The script must be compatible with VS Code from `scripts/vscode_automation/vscode-main` and VS Code Copilot from `scripts/vscode_automation/vscode-copilot-chat-main`.
+- **Performance Requirements**: The script must have a negligible impact on VS Code performance, with checks running efficiently in the background. The interval for checks should not be more frequent than every 5 seconds to avoid performance degradation.
 
 ## 10. Dependencies
 - **Internal Dependencies**: None.
@@ -83,7 +83,7 @@
     - **UI Changes**: The VS Code team could update the Copilot Chat UI, breaking the script's selectors. Mitigation: The script uses a wide range of selectors for each button to be resilient to minor changes. Major changes will require a script update.
     - **Unintended Clicks**: The script could misidentify an element and click something unintended. Mitigation: Selectors are designed to be highly specific to the chat and action context.
 - **Assumptions**:
-    - Users are running the script in a compatible browser environment.
+    - Users are running the script in a compatible VS Code environment.
     - The core functionality and class names of the Copilot Chat interface will remain relatively stable.
 
 ## 13. Feature Subsections
@@ -107,10 +107,10 @@
 - **User**: Alex, the Senior Software Engineer.
 
 #### Automated Task Continuation
-- **Description**: This feature ensures that Copilot does not remain idle if a task is incomplete. When no buttons are available and the AI is not actively working, the script sends a predefined prompt to encourage it to continue its task.
+- **Description**: This feature ensures that Copilot does not remain idle if a task is incomplete. When no buttons are available, the AI is not actively working, and the chat input field is empty, the script sends a predefined prompt to encourage it to continue its task.
 - **Goal**: To prevent the AI from stalling and ensure that long-running or complex tasks are seen through to completion without manual prompting.
 - **Use Cases**:
-    1.  **Stalled Generation**: Copilot finishes a response but the overall task is not complete. The user is away from the keyboard. After a short period of inactivity, the script sends the prompt "Continue executing the current task...", re-engaging the AI.
+    1.  **Stalled Generation**: Copilot finishes a response but the overall task is not complete. The user is away from the keyboard and has not typed anything in the chat. After a short period of inactivity, the script sends the prompt "Continue executing the current task...", re-engaging the AI.
 - **Visual UI**: No visual UI. The feature interacts with the chat input field programmatically.
 - **User Requirements**: The user needs the script to be intelligent enough to know when it's appropriate to send the continuation prompt, avoiding spamming the chat.
 - **User**: Alex, the Senior Software Engineer.
