@@ -3,73 +3,250 @@
  *
  * Automates VS Code Copilot Chat by clicking action buttons and sending prompts.
  *
- * Commands: autoContinue.stop(), autoContinue.restart(), autoContinue.debug()
+ * Commands: autoContinue.stop()
  */
 
-// Configuration
-const BUTTON_COOLDOWN_MS = 3000;
-const CHECK_INTERVAL = 5000;
-const MAX_RETRIES = 3;
+// Configuration module as per architecture specification
+const config = {
+  // CSS selectors for buttons and UI elements
+  selectors: {
+    // Action buttons to automatically click
+    buttons: {
+      continue: [
+        'button[aria-label*="Continue"]',
+        'button[title*="Continue"]',
+        'a.monaco-button[role="button"]',
+        'button.monaco-button',
+        '.action-item button[title*="Continue"]',
+        '.chat-response-controls button',
+        '.interactive-session .monaco-button'
+      ],
+      tryAgain: [
+        'button[aria-label*="Try"]',
+        'button[title*="Try"]',
+        'button[aria-label*="Retry"]',
+        'button[title*="Retry"]',
+        'a.monaco-button[role="button"]',
+        'button.monaco-button',
+        '.action-item button[title*="Try"]'
+      ],
+      keep: [
+        'button[aria-label*="Keep"]',
+        'button[title*="Keep"]',
+        'button[aria-label*="Accept"]',
+        'a.action-label[role="button"]',
+        'button.monaco-button',
+        '.action-item button[title*="Keep"]'
+      ],
+      accept: [
+        'button[aria-label*="Accept"]',
+        'button[title*="Accept"]',
+        'button[aria-label*="Apply"]',
+        'button.monaco-button',
+        '.action-item button[title*="Accept"]'
+      ]
+    },
+    // Chat input field selectors
+    input: [
+      // VS Code Copilot Chat specific selectors
+      '.interactive-input-part .chat-editor-container .interactive-input-editor textarea',
+      '.interactive-input-part .chat-editor-container textarea',
+      '.interactive-input-part .monaco-editor textarea',
+      '.chat-input-container .monaco-editor textarea',
+      '.chat-editor-container .monaco-editor textarea',
+      '.interactive-input-editor textarea',
+      // Generic chat input selectors
+      'div[role="textbox"][contenteditable="true"]',
+      '.interactive-input .monaco-editor textarea',
+      '.chat-input .monaco-editor textarea',
+      '.copilot-chat .monaco-editor textarea',
+      // Broader Monaco editor search within chat context
+      '.interactive-input-part textarea',
+      '.chat-input-container textarea',
+      '.interactive-session textarea',
+      // Generic input selectors
+      'textarea[placeholder*="Ask"]',
+      'textarea[placeholder*="Message"]',
+      'textarea[placeholder*="Chat"]',
+      'textarea[placeholder*="Send"]',
+      'textarea[aria-label*="Ask"]',
+      'textarea[aria-label*="Chat"]',
+      // Monaco specific
+      '.monaco-inputbox input',
+      '.monaco-editor textarea',
+      '.monaco-editor .view-line',
+      // Broader search for contenteditable in chat areas
+      '.chat-container [contenteditable="true"]',
+      '.copilot-chat [contenteditable="true"]',
+      '.interactive-session [contenteditable="true"]',
+      '.interactive-input-part [contenteditable="true"]',
+      '.chat-input-container [contenteditable="true"]',
+      '.chat-container textarea',
+      '.copilot-chat textarea'
+    ],
+    // Send button selectors
+    sendButton: [
+      '.interactive-input-part button[aria-label*="Send"]:not([disabled])',
+      '.interactive-input-part button[title*="Send"]:not([disabled])',
+      '.chat-input-container button[aria-label*="Send"]:not([disabled])',
+      '.chat-input-container button[title*="Send"]:not([disabled])',
+      '.chat-input-toolbars button:not([disabled])',
+      '.interactive-input-and-side-toolbar button:not([disabled])',
+      'button[aria-label*="Send"]:not([disabled])',
+      'button[title*="Send"]:not([disabled])',
+      'button[aria-label*="Submit"]:not([disabled])',
+      'button[title*="Submit"]:not([disabled])',
+      'button[type="submit"]:not([disabled])',
+      '.send-button:not([disabled])',
+      '.submit-button:not([disabled])',
+      '.chat-input button:not([disabled])',
+      '.interactive-input-part button:not([disabled])',
+      '.copilot-chat button:not([disabled])',
+      '.action-item button[title*="Send"]:not([disabled])',
+      'button.monaco-button:not([disabled])',
+      'button[class*="send"]:not([disabled])',
+      'button[class*="submit"]:not([disabled])'
+    ]
+  },
+  // Predefined prompts
+  prompts: {
+    continuation: "Continue executing the current task if it exists or do tasks on the dartboard iteratively until no uncompleted tasks left. Use build_run_rules, general, product_requirements_design instructions.md files."
+  },
+  // Time intervals and timing configuration
+  intervals: {
+    buttonCooldown: 3000,     // Cooldown between button clicks (ms)
+    checkInterval: 5000,      // Main loop check interval (ms)
+    maxRetries: 3,            // Maximum retry attempts
+    fastTaskThreshold: 20000, // Task duration threshold for "fast" tasks (ms)
+    maxConsecutiveFastTasks: 3 // Auto-stop after this many consecutive fast tasks
+  }
+};
 
-// State tracking
-let lastClick = Date.now();
-let isProcessing = false;
-let intervalId = null;
-let observer = null;
-let retryCount = 0;
-let debugMode = false;
+// Legacy constants for backward compatibility
+const BUTTON_COOLDOWN_MS = config.intervals.buttonCooldown;
+const CHECK_INTERVAL = config.intervals.checkInterval;
+const MAX_RETRIES = config.intervals.maxRetries;
 
-// Buttons to automatically click
+// Logging utility as per architecture specification
+const log = (function() {
+  // Log levels configuration
+  const levels = {
+    debug: { priority: 0, color: '#8E44AD', prefix: '🐛' },
+    info: { priority: 1, color: '#2196F3', prefix: 'ℹ️' },
+    warn: { priority: 2, color: '#FF9800', prefix: '⚠️' },
+    error: { priority: 3, color: '#F44336', prefix: '❌' },
+    success: { priority: 4, color: '#4CAF50', prefix: '✅' },
+    critical: { priority: 5, color: '#E91E63', prefix: '🚨' }
+  };
+
+  /**
+   * Structured logging function that respects debug flag
+   * @param {string} message - The message to log
+   * @param {string} level - Log level: 'debug', 'info', 'warn', 'error', 'success', 'critical'
+   * @param {object} data - Optional additional data to log
+   */
+  function log(message, level = 'info', data = null) {
+    // Validate level
+    if (!levels[level]) {
+      console.warn(`[auto] Invalid log level: ${level}. Using 'info' instead.`);
+      level = 'info';
+    }
+
+    // Skip debug messages if debug mode is disabled
+    if (level === 'debug' && !state.debugMode) {
+      return;
+    }
+
+    const levelConfig = levels[level];
+    const timestamp = new Date().toISOString().substr(11, 12); // HH:MM:SS.mmm
+    const formattedMessage = `[auto][${timestamp}] ${levelConfig.prefix} ${message}`;
+
+    // Use appropriate console method based on level
+    const consoleMethod = level === 'error' || level === 'critical' ? 'error' :
+                         level === 'warn' ? 'warn' :
+                         'log';
+
+    // Apply styling for better visibility
+    if (data) {
+      console[consoleMethod](
+        `%c${formattedMessage}`,
+        `color: ${levelConfig.color}; font-weight: ${level === 'critical' ? 'bold' : 'normal'};`,
+        data
+      );
+    } else {
+      console[consoleMethod](
+        `%c${formattedMessage}`,
+        `color: ${levelConfig.color}; font-weight: ${level === 'critical' ? 'bold' : 'normal'};`
+      );
+    }
+
+    // For critical errors, also log to error console
+    if (level === 'critical') {
+      console.error('CRITICAL ERROR DETAILS:', { message, data, timestamp });
+    }
+  }
+
+  // Convenience methods for common log levels
+  log.debug = (message, data) => log(message, 'debug', data);
+  log.info = (message, data) => log(message, 'info', data);
+  log.warn = (message, data) => log(message, 'warn', data);
+  log.error = (message, data) => log(message, 'error', data);
+  log.success = (message, data) => log(message, 'success', data);
+  log.critical = (message, data) => log(message, 'critical', data);
+
+  return log;
+})();
+
+// State management object as per architecture specification
+const state = {
+  isRunning: false,
+  timerId: null,
+  // lastActivityTime: Tracks when AI activity was last detected for idle detection
+  // Updated in the following scenarios:
+  // 1. Script initialization (immediate update)
+  // 2. Initial startup check if AI activity detected
+  // 3. When active task is detected in checkForIdle()
+  // 4. When buttons are successfully clicked (mainLoop)
+  // 5. When continuation prompts are sent (mainLoop)
+  lastActivityTime: new Date(),
+  // shortTaskCount: Counter for consecutive fast tasks (under config.intervals.fastTaskThreshold)
+  // Incremented when task completes under the threshold, reset when normal task (≥threshold) completes
+  // Used by autoStopLogic() to detect when AI is completing trivial tasks or stuck in loops
+  // Auto-stop triggers when shortTaskCount reaches config.intervals.maxConsecutiveFastTasks
+  shortTaskCount: 0,
+  // Additional state for current implementation compatibility
+  lastClick: Date.now(),
+  isProcessing: false,
+  retryCount: 0,
+  debugMode: false,
+  // Auto-stop functionality tracking
+  taskHistory: [],          // Array to track recent task completion times
+  currentTaskStartTime: null, // When the current task started
+  maxTaskHistorySize: 3     // Keep track of last 3 tasks for auto-stop logic
+};
+
+// Buttons to automatically click - using configuration
 const BUTTONS_TO_CLICK = [
   {
     name: 'Continue',
-    selectors: [
-      'button[aria-label*="Continue"]',
-      'button[title*="Continue"]',
-      'a.monaco-button[role="button"]',
-      'button.monaco-button',
-      '.action-item button[title*="Continue"]',
-      '.chat-response-controls button',
-      '.interactive-session .monaco-button'
-    ]
+    selectors: config.selectors.buttons.continue
   },
   {
     name: 'Try Again',
-    selectors: [
-      'button[aria-label*="Try"]',
-      'button[title*="Try"]',
-      'button[aria-label*="Retry"]',
-      'button[title*="Retry"]',
-      'a.monaco-button[role="button"]',
-      'button.monaco-button',
-      '.action-item button[title*="Try"]'
-    ]
+    selectors: config.selectors.buttons.tryAgain
   },
   {
     name: 'Keep',
-    selectors: [
-      'button[aria-label*="Keep"]',
-      'button[title*="Keep"]',
-      'button[aria-label*="Accept"]',
-      'a.action-label[role="button"]',
-      'button.monaco-button',
-      '.action-item button[title*="Keep"]'
-    ]
+    selectors: config.selectors.buttons.keep
   },
   {
     name: 'Accept',
-    selectors: [
-      'button[aria-label*="Accept"]',
-      'button[title*="Accept"]',
-      'button[aria-label*="Apply"]',
-      'button.monaco-button',
-      '.action-item button[title*="Accept"]'
-    ]
+    selectors: config.selectors.buttons.accept
   }
 ];
 
 function isTaskActive() {
-  console.log('%c[auto] 🔍 === ACTIVE TASK CHECK STARTED ===', 'font-weight: bold; color: #2196F3;');
+  log('🔍 === ACTIVE TASK CHECK STARTED ===', 'info');
 
   try {
     // Focused active task indicators - only actual loading/processing states
@@ -128,13 +305,13 @@ function isTaskActive() {
       '.execution-summary' // Execution summary containers
     ];
 
-    console.log(`[auto] 🔍 Checking ${activeIndicators.length} active task indicators...`);
+    log(`🔍 Checking ${activeIndicators.length} active task indicators...`, 'debug');
 
     for (const selector of activeIndicators) {
       try {
         const elements = Array.from(document.querySelectorAll(selector));
         if (elements.length > 0) {
-          console.log(`[auto] 📊 Found ${elements.length} elements with selector: ${selector}`);
+          log(`📊 Found ${elements.length} elements with selector: ${selector}`, 'debug');
 
           const visibleElements = elements.filter(el => {
             try {
@@ -153,7 +330,7 @@ function isTaskActive() {
                 });
 
                 if (isExcluded) {
-                  console.log(`[auto] 🚫 Excluded static indicator: ${el.className}`);
+                  log(`🚫 Excluded static indicator: ${el.className}`, 'debug');
                   return false;
                 }
 
@@ -187,10 +364,10 @@ function isTaskActive() {
                       hasActiveClass: hasActiveClass,
                       isAnimated: isAnimated
                     };
-                    console.log(`[auto] 🎯 Active element found:`, elementInfo);
+                    log('🎯 Active element found:', 'debug', elementInfo);
                     return true;
                   } else {
-                    console.log(`[auto] 🟠 Element found but not active: ${el.className}`);
+                    log(`🟠 Element found but not active: ${el.className}`, 'debug');
                   }
                 }
               }
@@ -201,13 +378,13 @@ function isTaskActive() {
           });
 
           if (visibleElements.length > 0) {
-            console.log(`[auto] ✅ ${visibleElements.length} visible active elements found with selector: ${selector}`);
-            console.log('%c[auto] 🟡 === ACTIVE TASK DETECTED ===', 'font-weight: bold; background: #fff3cd; color: #856404;');
+            log(`✅ ${visibleElements.length} visible active elements found with selector: ${selector}`, 'success');
+            log('🟡 === ACTIVE TASK DETECTED ===', 'warn');
             return true;
           }
         }
       } catch (selectorError) {
-        console.log(`[auto] ❌ Selector error for ${selector}:`, selectorError.message);
+        log(`❌ Selector error for ${selector}:`, 'error', selectorError.message);
         continue;
       }
     }
@@ -238,19 +415,19 @@ function isTaskActive() {
       });
 
       if (textBasedBusyElements.length > 0) {
-        console.log(`[auto] 📝 Found ${textBasedBusyElements.length} elements with active busy text content`);
+        log(`📝 Found ${textBasedBusyElements.length} elements with active busy text content`, 'debug');
         for (const el of textBasedBusyElements.slice(0, 3)) { // Check first 3
           const rect = el.getBoundingClientRect();
           const isVisible = rect.width > 0 && rect.height > 0 && el.offsetParent !== null;
           if (isVisible) {
-            console.log(`[auto] 📝 Active busy text element: "${el.textContent.trim().substring(0, 50)}"`);
-            console.log('%c[auto] 🟡 === ACTIVE TASK DETECTED (TEXT-BASED) ===', 'font-weight: bold; background: #fff3cd; color: #856404;');
+            log(`📝 Active busy text element: "${el.textContent.trim().substring(0, 50)}"`, 'debug');
+            log('🟡 === ACTIVE TASK DETECTED (TEXT-BASED) ===', 'warn');
             return true;
           }
         }
       }
     } catch (textError) {
-      console.log('[auto] ❌ Error in text-based detection:', textError.message);
+      log('❌ Error in text-based detection:', 'error', textError.message);
     }
 
     // Final check: Look for actual spinning/loading animations
@@ -262,79 +439,38 @@ function isTaskActive() {
         const isAnimated = style.animationName !== 'none' || style.animationDuration !== '0s';
 
         if (isVisible && isAnimated) {
-          console.log(`[auto] 🌀 Found animated loading element: ${el.className}`);
+          log(`🌀 Found animated loading element: ${el.className}`, 'debug');
           return true;
         }
         return false;
       });
 
       if (spinningElements.length > 0) {
-        console.log('%c[auto] 🟡 === ACTIVE TASK DETECTED (ANIMATION-BASED) ===', 'font-weight: bold; background: #fff3cd; color: #856404;');
+        log('🟡 === ACTIVE TASK DETECTED (ANIMATION-BASED) ===', 'warn');
         return true;
       }
     } catch (animationError) {
-      console.log('[auto] ❌ Error in animation-based detection:', animationError.message);
+      log('❌ Error in animation-based detection:', 'error', animationError.message);
     }
 
-    console.log('%c[auto] 🟢 === NO ACTIVE TASK - READY FOR ACTION ===', 'font-weight: bold; background: #d4edda; color: #155724;');
+    log('🟢 === NO ACTIVE TASK - READY FOR ACTION ===', 'success');
     return false;
   } catch (error) {
-    console.error('[auto] ❌ Error in isTaskActive:', error);
+    log('❌ Error in isTaskActive:', 'error', error);
     return false;
   }
 }
 
 function isInputReady() {
   try {
-    console.log('[auto] 🔍 Checking for input field...');
+    log('🔍 Checking for input field...', 'debug');
 
-    const inputSelectors = [
-      // VS Code Copilot Chat specific selectors (based on source analysis)
-      '.interactive-input-part .chat-editor-container .interactive-input-editor textarea',
-      '.interactive-input-part .chat-editor-container textarea',
-      '.interactive-input-part .monaco-editor textarea',
-      '.chat-input-container .monaco-editor textarea',
-      '.chat-editor-container .monaco-editor textarea',
-      '.interactive-input-editor textarea',
-
-      // Generic chat input selectors
-      'div[role="textbox"][contenteditable="true"]',
-      '.interactive-input .monaco-editor textarea',
-      '.chat-input .monaco-editor textarea',
-      '.copilot-chat .monaco-editor textarea',
-
-      // Broader Monaco editor search within chat context
-      '.interactive-input-part textarea',
-      '.chat-input-container textarea',
-      '.interactive-session textarea',
-
-      // Generic input selectors
-      'textarea[placeholder*="Ask"]',
-      'textarea[placeholder*="Message"]',
-      'textarea[placeholder*="Chat"]',
-      'textarea[placeholder*="Send"]',
-      'textarea[aria-label*="Ask"]',
-      'textarea[aria-label*="Chat"]',
-
-      // Monaco specific
-      '.monaco-inputbox input',
-      '.monaco-editor textarea',
-      '.monaco-editor .view-line',
-
-      // Broader search for any contenteditable or textarea in chat areas
-      '.chat-container [contenteditable="true"]',
-      '.copilot-chat [contenteditable="true"]',
-      '.interactive-session [contenteditable="true"]',
-      '.interactive-input-part [contenteditable="true"]',
-      '.chat-input-container [contenteditable="true"]',
-      '.chat-container textarea',
-      '.copilot-chat textarea'
-    ];
+    const inputSelectors = config.selectors.input;
 
     for (const selector of inputSelectors) {
       try {
         const inputs = Array.from(document.querySelectorAll(selector));
-        console.log(`[auto] 📋 Found ${inputs.length} elements for selector: ${selector}`);
+        log(`📋 Found ${inputs.length} elements for selector: ${selector}`, 'debug');
 
         for (let i = 0; i < inputs.length; i++) {
           const input = inputs[i];
@@ -379,13 +515,13 @@ function isInputReady() {
               disabled: isExplicitlyDisabled,
               context: input.closest('.interactive-input-part, .chat-input-container, .monaco-editor')?.className || 'none'
             };
-            console.log('[auto] ✅ Found ready input field:', inputInfo);
+            log('✅ Found ready input field:', 'success', inputInfo);
             return input;
           } else {
             const rejectReason = !isVisible ? 'not visible' :
                                isExplicitlyDisabled ? 'explicitly disabled' :
                                (!inChatContext && !hasInputContext) ? 'not in chat context' : 'unknown';
-            console.log(`[auto] 🟠 Input rejected (${rejectReason}):`, {
+            log(`🟠 Input rejected (${rejectReason}):`, 'debug', {
               tag: input.tagName,
               disabled: isExplicitlyDisabled,
               visible: isVisible,
@@ -396,14 +532,14 @@ function isInputReady() {
           }
         }
       } catch (selectorError) {
-        console.log(`[auto] ❌ Selector error for ${selector}:`, selectorError.message);
+        log(`❌ Selector error for ${selector}:`, 'error', selectorError.message);
         continue;
       }
     }
 
     // Enhanced fallback: search more broadly for any focusable element in chat areas
     try {
-      console.log('[auto] 🔍 Enhanced fallback: searching for any chat input elements...');
+      log('🔍 Enhanced fallback: searching for any chat input elements...', 'debug');
 
       // First, look specifically in interactive input parts
       const interactiveInputParts = Array.from(document.querySelectorAll('.interactive-input-part, .chat-input-container, .chat-editor-container, .interactive-input-editor'));
@@ -422,7 +558,7 @@ function isInputReady() {
         });
 
         if (bestMatch) {
-          console.log('[auto] ✅ Using enhanced fallback input:', {
+          log('✅ Using enhanced fallback input:', 'success', {
             tag: bestMatch.tagName,
             contentEditable: bestMatch.contentEditable,
             role: bestMatch.getAttribute('role'),
@@ -447,9 +583,9 @@ function isInputReady() {
       });
 
       if (chatFocusable.length > 0) {
-        console.log(`[auto] 📋 Found ${chatFocusable.length} focusable elements in chat areas`);
+        log(`📋 Found ${chatFocusable.length} focusable elements in chat areas`, 'debug');
         const bestMatch = chatFocusable[0]; // Take the first one
-        console.log('[auto] ✅ Using final fallback input:', {
+        log('✅ Using final fallback input:', 'success', {
           tag: bestMatch.tagName,
           contentEditable: bestMatch.contentEditable,
           role: bestMatch.getAttribute('role')
@@ -457,28 +593,28 @@ function isInputReady() {
         return bestMatch;
       }
     } catch (fallbackError) {
-      console.log('[auto] ❌ Error in fallback search:', fallbackError.message);
+      log('❌ Error in fallback search:', 'error', fallbackError.message);
     }
 
-    console.log('[auto] ❌ No input field found');
+    log('❌ No input field found', 'error');
     return null;
   } catch (error) {
-    console.error('[auto] ❌ Error in isInputReady:', error);
+    log('❌ Error in isInputReady:', 'error', error);
     return null;
   }
 }
 
 async function sendPrompt() {
   try {
-    const prompt = "Continue executing the current task if it exists or do tasks on the dartboard iteratively until no uncompleted tasks left. Use build_run_rules, general, product_requirements_design instructions.md files.";
+    const prompt = config.prompts.continuation;
     const input = isInputReady();
 
     if (input) {
       const previouslyFocusedElement = document.activeElement;
-      console.log('[auto] 🧠 Storing previously focused element:', previouslyFocusedElement);
+      log('🧠 Storing previously focused element:', 'debug', previouslyFocusedElement);
 
-      console.log('[auto] 📝 Input field found, setting prompt text...');
-      console.log('[auto] 📝 Input details:', {
+      log('📝 Input field found, setting prompt text...', 'info');
+      log('📝 Input details:', 'debug', {
         tag: input.tagName,
         type: input.type || 'textarea',
         contentEditable: input.contentEditable,
@@ -486,39 +622,39 @@ async function sendPrompt() {
       });
 
       // Ensure input field is focused
-      console.log('[auto] 🎯 Ensuring input field is focused...');
+      log('🎯 Ensuring input field is focused...', 'debug');
       
       // Focus parent containers that might contain Monaco editor
       const chatContainer = input.closest('.chat-container, .copilot-chat, .interactive-session, .interactive-input-part');
       if (chatContainer) {
         chatContainer.focus();
-        console.log('[auto] ✅ Focused chat container');
+        log('✅ Focused chat container', 'debug');
       }
       
       const editorContainer = input.closest('.monaco-editor, .chat-editor-container, .interactive-input-editor');
       if (editorContainer) {
         editorContainer.focus();
-        console.log('[auto] ✅ Focused editor container');
+        log('✅ Focused editor container', 'debug');
       }
       
       input.focus();
-      console.log('[auto] ✅ Focused input element');
+      log('✅ Focused input element', 'debug');
       
       // Try to click the input to ensure proper focus for Monaco
       const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
       input.dispatchEvent(clickEvent);
-      console.log('[auto] ✅ Triggered Monaco focus via click');
+      log('✅ Triggered Monaco focus via click', 'debug');
       
       // Short delay to ensure focus is established
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      console.log('[auto] 📝 Setting prompt text in input field...');
+      log('📝 Setting prompt text in input field...', 'info');
 
       // Try Monaco editor approach first
       let promptSetSuccessfully = false;
       
       if (input.closest('.monaco-editor')) {
-        console.log('[auto] 🎯 Detected Monaco editor, using Monaco setValue method...');
+        log('🎯 Detected Monaco editor, using Monaco setValue method...', 'debug');
         try {
           // Look for Monaco editor instance in various ways
           let monacoEditor = null;
@@ -550,23 +686,23 @@ async function sendPrompt() {
           if (monacoEditor) {
             // Use Monaco editor setValue method
             monacoEditor.setValue(prompt);
-            console.log('[auto] ✅ Set prompt using Monaco setValue method');
+            log('✅ Set prompt using Monaco setValue method', 'success');
             promptSetSuccessfully = true;
           } else {
-            console.log('[auto] ⚠️ Monaco instance not found, using direct value assignment');
+            log('⚠️ Monaco instance not found, using direct value assignment', 'warn');
           }
         } catch (monacoError) {
-          console.log('[auto] ⚠️ Monaco editor access failed:', monacoError.message);
+          log('⚠️ Monaco editor access failed:', 'warn', monacoError.message);
         }
       }
 
       // Fallback methods if Monaco approach didn't work
       if (!promptSetSuccessfully) {
-        console.log('[auto] 🔄 Using fallback text setting methods...');
+        log('🔄 Using fallback text setting methods...', 'debug');
         
         // Method 1: For contenteditable elements
         if (input.contentEditable === 'true' || input.getAttribute('contenteditable') === 'true') {
-          console.log('[auto] 📝 Setting text for contenteditable element...');
+          log('📝 Setting text for contenteditable element...', 'debug');
           input.textContent = prompt;
           input.innerText = prompt;
           
@@ -577,7 +713,7 @@ async function sendPrompt() {
         }
         // Method 2: For textarea/input elements
         else if (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT') {
-          console.log('[auto] 📝 Setting value for textarea/input element...');
+          log('📝 Setting value for textarea/input element...', 'debug');
           input.value = prompt;
           
           // Trigger input events
@@ -587,7 +723,7 @@ async function sendPrompt() {
         }
         // Method 3: Use modern insertText approach
         else {
-          console.log('[auto] 📝 Using insertText approach...');
+          log('📝 Using insertText approach...', 'debug');
           try {
             // Clear existing content first
             input.focus();
@@ -596,54 +732,33 @@ async function sendPrompt() {
             // Insert the full prompt at once
             const success = document.execCommand('insertText', false, prompt);
             if (success) {
-              console.log('[auto] ✅ Prompt set using insertText command');
+              log('✅ Prompt set using insertText command', 'success');
               promptSetSuccessfully = true;
             }
           } catch (insertError) {
-            console.log('[auto] ⚠️ insertText failed:', insertError.message);
+            log('⚠️ insertText failed:', 'warn', insertError.message);
           }
         }
       }
 
       // Final verification
       const currentValue = input.value || input.textContent || input.innerText || '';
-      console.log('[auto] 🔍 Final verification - prompt set correctly:', currentValue.includes(prompt.substring(0, 50)));
+      log('🔍 Final verification - prompt set correctly:', currentValue.includes(prompt.substring(0, 50)));
       
       if (!promptSetSuccessfully) {
-        console.log('[auto] ❌ Failed to set prompt text properly');
+        log('❌ Failed to set prompt text properly', 'error');
         return false;
       }
 
       // Try to find and click send button
-      console.log('[auto] 🔍 Looking for send button...');
+      log('🔍 Looking for send button...', 'debug');
       
-      const sendButtonSelectors = [
-        '.interactive-input-part button[aria-label*="Send"]:not([disabled])',
-        '.interactive-input-part button[title*="Send"]:not([disabled])',
-        '.chat-input-container button[aria-label*="Send"]:not([disabled])',
-        '.chat-input-container button[title*="Send"]:not([disabled])',
-        '.chat-input-toolbars button:not([disabled])',
-        '.interactive-input-and-side-toolbar button:not([disabled])',
-        'button[aria-label*="Send"]:not([disabled])',
-        'button[title*="Send"]:not([disabled])',
-        'button[aria-label*="Submit"]:not([disabled])',
-        'button[title*="Submit"]:not([disabled])',
-        'button[type="submit"]:not([disabled])',
-        '.send-button:not([disabled])',
-        '.submit-button:not([disabled])',
-        '.chat-input button:not([disabled])',
-        '.interactive-input-part button:not([disabled])',
-        '.copilot-chat button:not([disabled])',
-        '.action-item button[title*="Send"]:not([disabled])',
-        'button.monaco-button:not([disabled])',
-        'button[class*="send"]:not([disabled])',
-        'button[class*="submit"]:not([disabled])'
-      ];
+      const sendButtonSelectors = config.selectors.sendButton;
 
       let sendButtonFound = false;
       for (const selector of sendButtonSelectors) {
         const buttons = Array.from(document.querySelectorAll(selector));
-        console.log(`[auto] 🔍 Found ${buttons.length} candidates for selector: ${selector}`);
+        log(`🔍 Found ${buttons.length} candidates for selector: ${selector}`, 'debug');
         
         const sendButton = buttons.find(btn => {
           const rect = btn.getBoundingClientRect();
@@ -653,7 +768,7 @@ async function sendPrompt() {
         });
         
         if (sendButton) {
-          console.log('[auto] 🎯 Found send button, clicking...');
+          log('🎯 Found send button, clicking...', 'info');
           sendButton.click();
           sendButtonFound = true;
           break;
@@ -662,7 +777,7 @@ async function sendPrompt() {
 
       // If no send button found, use Enter key
       if (!sendButtonFound) {
-        console.log('[auto] ⌨️ No send button found, trying multiple Enter key approaches...');
+        log('⌨️ No send button found, trying multiple Enter key approaches...', 'debug');
         
         input.focus();
         
@@ -696,380 +811,395 @@ async function sendPrompt() {
           }));
         }
         
-        console.log('[auto] ✅ Prompt sent via Enter key combinations');
+        log('✅ Prompt sent via Enter key combinations', 'success');
       }
 
       // Restore focus to the previously active element
       if (previouslyFocusedElement && typeof previouslyFocusedElement.focus === 'function') {
-        console.log('[auto] ↩️ Restoring focus to previous element:', previouslyFocusedElement);
+        log('↩️ Restoring focus to previous element:', previouslyFocusedElement);
         previouslyFocusedElement.focus();
-        console.log('[auto] ✅ Focus restored successfully.');
+        log('✅ Focus restored successfully.', 'debug');
       }
       
       return true;
     } else {
-      console.log('[auto] ❌ No input field available for sending prompt');
+      log('❌ No input field available for sending prompt', 'error');
       return false;
     }
   } catch (error) {
-    console.error('[auto] ❌ Error in sendPrompt:', error);
+    log('❌ Error in sendPrompt:', 'error', error);
     return false;
   }
 }
 
-function findAndClickButton() {
-  const now = Date.now();
-  if (now - lastClick < BUTTON_COOLDOWN_MS) {
-    return false;
-  }
+// NOTE: findAndClickButton() has been refactored into clickButton(selector) and clickButtonByText(buttonName)
+// as per the Action Functions section in vscode_auto_continue_architecture.md
 
-  // Block phantom messages
-  const originalConsoleLog = console.log;
-  console.log = function(...args) {
-    const message = args.join(' ');
-    if (message.includes('[auto] Clicked ') &&
-        !message.includes('[AUTO-CONTINUE-CLICK]') &&
-        !message.includes('🎯 Successfully clicked')) {
-      console.warn('[auto] 🚫 BLOCKED PHANTOM CLICK MESSAGE:', message);
-      return;
-    }
-    return originalConsoleLog.apply(console, args);
-  };
-
+// Action function: Generic button clicking function per architecture specification
+function clickButton(selector) {
   try {
-    for (const buttonConfig of BUTTONS_TO_CLICK) {
-      for (const selector of buttonConfig.selectors) {
-        try {
-          const buttons = Array.from(document.querySelectorAll(selector));
+    const buttons = Array.from(document.querySelectorAll(selector));
+    
+    if (buttons.length === 0) {
+      log(`🔍 No buttons found for selector: ${selector}`, 'debug');
+      return false;
+    }
 
-          if (buttons.length > 0) {
-            const button = buttons.find(btn => {
-              try {
-                const rect = btn.getBoundingClientRect();
-                const style = window.getComputedStyle(btn);
-                const isVisible = rect.width > 0 && rect.height > 0 &&
-                                 btn.offsetParent !== null &&
-                                 style.display !== 'none' &&
-                                 style.visibility !== 'hidden' &&
-                                 style.opacity !== '0';
-
-                const isEnabled = !btn.disabled &&
-                                 btn.getAttribute('aria-disabled') !== 'true' &&
-                                 !btn.hasAttribute('disabled');
-
-                const buttonText = (btn.textContent || btn.getAttribute('aria-label') || btn.getAttribute('title') || '').toLowerCase().trim();
-                const nameMatch = buttonText.includes(buttonConfig.name.toLowerCase());
-                const alreadyClicked = btn.getAttribute('data-auto-continue-clicked') === 'true';
-
-                return isVisible && isEnabled && nameMatch && !alreadyClicked;
-              } catch (e) {
-                return false;
-              }
-            });
-
-            if (button) {
-              try {
-                const buttonText = (button.textContent || button.getAttribute('aria-label') || button.getAttribute('title') || '').trim();
-
-                const rect = button.getBoundingClientRect();
-                const isStillVisible = rect.width > 0 && rect.height > 0 && button.offsetParent !== null;
-                const isStillEnabled = !button.disabled && button.getAttribute('aria-disabled') !== 'true';
-
-                if (!isStillVisible || !isStillEnabled) {
-                  continue;
-                }
-
-                button.setAttribute('data-auto-continue-clicked', 'true');
-                button.scrollIntoView({ block: 'center', inline: 'center' });
-
-                const clickEvent = new MouseEvent('click', {
-                  bubbles: true,
-                  cancelable: true,
-                  view: window
-                });
-                clickEvent.autoContinueSource = true;
-
-                const clickResult = button.dispatchEvent(clickEvent);
-
-                if (clickResult) {
-                  lastClick = now;
-                  retryCount = 0;
-                  console.log(`[auto] 🎯 Successfully clicked '${buttonConfig.name}' button with text: "${buttonText}" [AUTO-CONTINUE-CLICK]`);
-                  return true;
-                }
-              } catch (error) {
-                console.error(`[auto] ❌ Error clicking '${buttonConfig.name}' button:`, error);
-              }
-            }
-          }
-        } catch (selectorError) {
-          continue;
-        }
-      }
-
-      // Text-based matching fallback
+    const button = buttons.find(btn => {
       try {
-        const allButtons = Array.from(document.querySelectorAll('button, a[role="button"], .monaco-button, .action-label'));
-        const textMatchButtons = allButtons.filter(btn => {
-          const text = (btn.textContent || btn.getAttribute('aria-label') || btn.getAttribute('title') || '').toLowerCase().trim();
-          return text.includes(buttonConfig.name.toLowerCase());
-        });
+        const rect = btn.getBoundingClientRect();
+        const style = window.getComputedStyle(btn);
+        const isVisible = rect.width > 0 && rect.height > 0 &&
+                         btn.offsetParent !== null &&
+                         style.display !== 'none' &&
+                         style.visibility !== 'hidden' &&
+                         style.opacity !== '0';
 
-        if (textMatchButtons.length > 0) {
-          const button = textMatchButtons.find(btn => {
-            try {
-              const rect = btn.getBoundingClientRect();
-              const style = window.getComputedStyle(btn);
-              const isVisible = rect.width > 0 && rect.height > 0 &&
-                               btn.offsetParent !== null &&
-                               style.display !== 'none' &&
-                               style.visibility !== 'hidden' &&
-                               style.opacity !== '0';
+        const isEnabled = !btn.disabled &&
+                         btn.getAttribute('aria-disabled') !== 'true' &&
+                         !btn.hasAttribute('disabled');
 
-              const isEnabled = !btn.disabled &&
-                               btn.getAttribute('aria-disabled') !== 'true' &&
-                               !btn.hasAttribute('disabled');
+        const alreadyClicked = btn.getAttribute('data-auto-continue-clicked') === 'true';
 
-              const alreadyClicked = btn.getAttribute('data-auto-continue-clicked') === 'true';
-
-              return isVisible && isEnabled && !alreadyClicked;
-            } catch (e) {
-              return false;
-            }
-          });
-
-          if (button) {
-            try {
-              const buttonText = (button.textContent || button.getAttribute('aria-label') || button.getAttribute('title') || '').trim();
-
-              const rect = button.getBoundingClientRect();
-              const isStillVisible = rect.width > 0 && rect.height > 0 && button.offsetParent !== null;
-              const isStillEnabled = !button.disabled && button.getAttribute('aria-disabled') !== 'true';
-
-              if (!isStillVisible || !isStillEnabled) {
-                continue;
-              }
-
-              button.setAttribute('data-auto-continue-clicked', 'true');
-              button.scrollIntoView({ block: 'center', inline: 'center' });
-
-              const clickEvent = new MouseEvent('click', {
-                bubbles: true,
-                cancelable: true,
-                view: window
-              });
-              clickEvent.autoContinueSource = true;
-
-              const clickResult = button.dispatchEvent(clickEvent);
-
-              if (clickResult) {
-                lastClick = now;
-                retryCount = 0;
-                console.log(`[auto] 🎯 Successfully clicked '${buttonConfig.name}' button (text match) with text: "${buttonText}" [AUTO-CONTINUE-CLICK]`);
-                return true;
-              }
-            } catch (error) {
-              console.error(`[auto] ❌ Error clicking text-matched '${buttonConfig.name}' button:`, error);
-            }
-          }
-        }
-      } catch (textError) {
-        // Silent continue
+        return isVisible && isEnabled && !alreadyClicked;
+      } catch (e) {
+        return false;
       }
+    });
+
+    if (!button) {
+      log(`🔍 No clickable button found for selector: ${selector}`, 'debug');
+      return false;
     }
 
-    return false;
-  } catch (error) {
-    console.error('[auto] ❌ Critical error in findAndClickButton:', error);
-    return false;
-  } finally {
-    console.log = originalConsoleLog;
-  }
-}
+    // Check cooldown
+    const now = Date.now();
+    if (now - state.lastClick < config.intervals.buttonCooldown) {
+      log(`⏱️ Button cooldown active, skipping click (${now - state.lastClick}ms < ${config.intervals.buttonCooldown}ms)`, 'debug');
+      return false;
+    }
 
-function setupMutationObserver() {
-  const observerConfig = {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    characterData: true,
-    attributeFilter: ['class', 'style', 'disabled', 'role', 'placeholder', 'aria-label', 'title']
-  };
-
-  observer = new MutationObserver((mutations) => {
     try {
-      const relevantChange = mutations.some(mutation => {
-        const target = mutation.target;
-        const isRelevant = target.closest && (
-          target.closest('.chat-container') ||
-          target.closest('.copilot-chat') ||
-          target.closest('.interactive-result') ||
-          target.closest('.chat-response') ||
-          target.closest('.monaco-button') ||
-          target.classList.contains('codicon-loading') ||
-          target.classList.contains('progress-bar')
-        );
+      const buttonText = (button.textContent || button.getAttribute('aria-label') || button.getAttribute('title') || '').trim();
 
-        return isRelevant ||
-               mutation.type === 'attributes' &&
-               ['disabled', 'aria-busy', 'class'].includes(mutation.attributeName);
-      });
+      // Final validation before clicking
+      const rect = button.getBoundingClientRect();
+      const isStillVisible = rect.width > 0 && rect.height > 0 && button.offsetParent !== null;
+      const isStillEnabled = !button.disabled && button.getAttribute('aria-disabled') !== 'true';
 
-      if (relevantChange) {
-        clearTimeout(window.autoCheckTimeout);
-        window.autoCheckTimeout = setTimeout(() => {
-          checkAndContinue().catch(console.error);
-        }, 500);
+      if (!isStillVisible || !isStillEnabled) {
+        log(`🚫 Button no longer clickable: ${buttonText}`, 'debug');
+        return false;
       }
-    } catch (error) {
-      console.error('[auto] Error in MutationObserver callback:', error);
-    }
-  });
 
-  try {
-    observer.observe(document.body, observerConfig);
+      // Mark as clicked to prevent duplicate clicks
+      button.setAttribute('data-auto-continue-clicked', 'true');
+      
+      // Scroll into view
+      button.scrollIntoView({ block: 'center', inline: 'center' });
 
-    if (window.autoContinueObservers) {
-      window.autoContinueObservers.push(observer);
+      // Create and dispatch click event
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+      clickEvent.autoContinueSource = true;
+
+      const clickResult = button.dispatchEvent(clickEvent);
+
+      if (clickResult) {
+        state.lastClick = now;
+        state.retryCount = 0;
+        log(`🎯 Successfully clicked button: "${buttonText}" [${selector}]`, 'success');
+        return true;
+      } else {
+        log(`❌ Click event failed for button: "${buttonText}"`, 'warn');
+        return false;
+      }
+    } catch (clickError) {
+      log(`❌ Error clicking button with selector ${selector}:`, 'error', clickError);
+      return false;
     }
   } catch (error) {
-    console.error('[auto] Error starting MutationObserver:', error);
+    log(`❌ Critical error in clickButton(${selector}):`, 'error', error);
+    return false;
   }
 }
 
-async function checkAndContinue() {
-  if (isProcessing) {
+// Main Loop function as per architecture specification
+async function mainLoop() {
+  // Check if the script is in the running state. If not, exit.
+  if (!state.isRunning) {
     return;
   }
 
-  isProcessing = true;
-  const now = Date.now();
-  const checkId = Math.random().toString(36).substr(2, 6);
-  let actionTaken = false;
-  let hasActiveTask = false;
+  if (state.isProcessing) {
+    return;
+  }
 
-  console.log(`[auto][${checkId}] 🔄 ===== STARTING CHECK =====`);
+  state.isProcessing = true;
+  const checkId = Math.random().toString(36).substr(2, 6);
+
+  log(`[${checkId}] 🔄 ===== MAIN LOOP ITERATION =====`, 'info');
 
   try {
-    hasActiveTask = isTaskActive();
-    console.log(`[auto][${checkId}] ${hasActiveTask ? '🟡' : '🟢'} Active task: ${hasActiveTask}`);
-
-    if (!hasActiveTask) {
-      console.log(`[auto][${checkId}] 🔍 No active task detected, checking for buttons to click...`);
-      const buttonClicked = findAndClickButton();
-      if (buttonClicked) {
-        actionTaken = true;
-        console.log(`[auto][${checkId}] ✅ Action taken: Button clicked successfully`);
-      } else {
-        console.log(`[auto][${checkId}] 🔍 No buttons available, checking if we should send prompt...`);
-        const inputElement = isInputReady();
-        if (inputElement) {
-          console.log(`[auto][${checkId}] 📝 Input field ready, attempting to send continuation prompt...`);
-          const promptSent = await sendPrompt();
-          if (promptSent) {
-            actionTaken = true;
-            console.log(`[auto][${checkId}] ✅ Action taken: Prompt sent successfully`);
-          } else {
-            console.log(`[auto][${checkId}] ❌ Failed to send prompt`);
-          }
-        } else {
-          console.log(`[auto][${checkId}] ❌ Input field not ready for sending prompt`);
-        }
-      }
+    // 1. Call checkForButtons() to find and click any actionable buttons
+    const buttonClicked = checkForButtons();
+    if (buttonClicked) {
+      // If a button is clicked, reset the idle timer and exit the current loop iteration
+      state.lastActivityTime = new Date();
+      log(`[${checkId}] ✅ Button clicked, resetting idle timer and exiting loop iteration`, 'success');
+      return;
     }
 
-    // Increment retry count if no action was taken
-    if (!actionTaken && !hasActiveTask) {
-      retryCount++;
-      console.log(`[auto][${checkId}] 📈 No action taken, incrementing retry count to ${retryCount}/${MAX_RETRIES}`);
-      if (retryCount > MAX_RETRIES) {
-        console.log(`[auto][${checkId}] 🔄 Max retries (${MAX_RETRIES}) reached. Resetting retry count to 0.`);
-        retryCount = 0;
+    // 2. If no buttons are found, call checkForIdle() to see if the AI has stalled
+    const isIdle = checkForIdle();
+    if (!isIdle) {
+      log(`[${checkId}] 🟡 AI is still active, waiting for completion`, 'debug');
+      // Start task tracking if AI is active and we're not already tracking
+      if (!state.currentTaskStartTime) {
+        startTaskTracking();
       }
-    } else if (actionTaken) {
-      console.log(`[auto][${checkId}] 🔄 Action taken successfully, resetting retry count to 0`);
-      retryCount = 0; // Reset on successful action
+      return;
+    }
+
+    // AI is now idle - complete task tracking if we were tracking
+    if (state.currentTaskStartTime) {
+      const taskDuration = completeTaskTracking();
+      log(`[${checkId}] 📊 Completed task tracking: ${Math.round(taskDuration / 1000)}s`, 'info');
+    }
+
+    // 3. If the AI is idle, check if the chat input field is empty to avoid interfering with user input
+    const inputElement = isInputReady();
+    if (!inputElement) {
+      log(`[${checkId}] ❌ Input field not ready or has user content`, 'warn');
+      return;
+    }
+
+    // 4. If the input field is empty, call sendContinuationPrompt()
+    const promptSent = await sendContinuationPrompt();
+    if (promptSent) {
+      state.lastActivityTime = new Date();
+      // Start tracking the new task that we just initiated
+      startTaskTracking();
+      log(`[${checkId}] ✅ Continuation prompt sent successfully, started new task tracking`, 'success');
+    }
+
+    // 5. Call autoStopLogic() to check if the script should terminate itself
+    const shouldStop = autoStopLogic();
+    if (shouldStop) {
+      log(`[${checkId}] 🛑 Auto-stop logic triggered, stopping script`, 'warn');
+      autoContinue.stop();
+      return;
     }
 
   } catch (error) {
-    console.error(`[auto][${checkId}] ❌ Error in checkAndContinue:`, error);
-    retryCount++;
+    log(`[${checkId}] ❌ Error in mainLoop:`, 'error', error);
+    state.retryCount++;
   } finally {
-    isProcessing = false;
-    console.log(`[auto][${checkId}] 🏁 ===== CHECK COMPLETE =====`);
-    console.log(`[auto][${checkId}] 📊 Final state: actionTaken=${actionTaken}, retryCount=${retryCount}, hasActiveTask=${hasActiveTask}`);
+    state.isProcessing = false;
+    log(`[${checkId}] 🏁 ===== MAIN LOOP COMPLETE =====`, 'debug');
+  }
+}
+
+// Action function: Check for and click actionable buttons
+function checkForButtons() {
+  log('🔍 Checking for actionable buttons...', 'debug');
+  
+  try {
+    // Check each button type in priority order
+    for (const buttonConfig of BUTTONS_TO_CLICK) {
+      log(`🔍 Checking for '${buttonConfig.name}' buttons...`, 'debug');
+      
+      // Try each selector for this button type
+      for (const selector of buttonConfig.selectors) {
+        const clicked = clickButton(selector);
+        if (clicked) {
+          log(`✅ Successfully clicked '${buttonConfig.name}' button`, 'info');
+          return true;
+        }
+      }
+      
+      // Fallback: text-based matching for this button type
+      const textMatchClicked = clickButtonByText(buttonConfig.name);
+      if (textMatchClicked) {
+        log(`✅ Successfully clicked '${buttonConfig.name}' button (text match)`, 'info');
+        return true;
+      }
+    }
+    
+    log('🔍 No actionable buttons found', 'debug');
+    return false;
+  } catch (error) {
+    log('❌ Error in checkForButtons:', 'error', error);
+    return false;
+  }
+}
+
+// Action function: Check if AI is idle (stalled)
+function checkForIdle() {
+  log('🔍 Checking for idle state...', 'debug');
+  
+  try {
+    // Check if there's an active task running
+    const hasActiveTask = isTaskActive();
+    if (hasActiveTask) {
+      // Update lastActivityTime since we just detected AI activity
+      state.lastActivityTime = new Date();
+      log('🟡 Active task detected, AI is not idle - updated lastActivityTime', 'debug');
+      return false;
+    }
+
+    // Check if enough time has passed since last activity for idle detection
+    const now = new Date();
+    const timeSinceLastActivity = now - state.lastActivityTime;
+    const idleThreshold = config.intervals.checkInterval * 2; // 2x check interval as idle threshold
+    
+    const isIdle = timeSinceLastActivity > idleThreshold;
+    log(`${isIdle ? '🟢' : '🟡'} Idle check: ${timeSinceLastActivity}ms since last activity (threshold: ${idleThreshold}ms)`, 'debug');
+    
+    return isIdle;
+  } catch (error) {
+    log('❌ Error in checkForIdle:', 'error', error);
+    return true; // Assume idle on error to allow continuation
+  }
+}
+
+// Action function: Send continuation prompt
+async function sendContinuationPrompt() {
+  log('📝 Sending continuation prompt...', 'info');
+  
+  try {
+    return await sendPrompt();
+  } catch (error) {
+    log('❌ Error in sendContinuationPrompt:', error);
+    return false;
+  }
+}
+
+// Helper function: Start tracking a new task
+function startTaskTracking() {
+  state.currentTaskStartTime = new Date();
+  log('📊 Started tracking new task at:', 'debug', state.currentTaskStartTime.toISOString());
+}
+
+// Helper function: Complete current task and add to history
+function completeTaskTracking() {
+  if (state.currentTaskStartTime) {
+    const completionTime = new Date();
+    const taskDuration = completionTime - state.currentTaskStartTime;
+    
+    // Add to task history
+    state.taskHistory.push({
+      startTime: state.currentTaskStartTime,
+      endTime: completionTime,
+      duration: taskDuration
+    });
+    
+    // Keep only the last N tasks
+    if (state.taskHistory.length > state.maxTaskHistorySize) {
+      state.taskHistory = state.taskHistory.slice(-state.maxTaskHistorySize);
+    }
+    
+    // Update shortTaskCount for consecutive fast tasks tracking
+    const shortTaskThreshold = config.intervals.fastTaskThreshold; // Use configurable threshold
+    if (taskDuration < shortTaskThreshold) {
+      state.shortTaskCount++;
+      log(`📊 Task completed in ${taskDuration}ms (FAST). Consecutive short tasks: ${state.shortTaskCount}`, 'info');
+    } else {
+      // Reset counter if this task was not fast
+      if (state.shortTaskCount > 0) {
+        log(`📊 Task completed in ${taskDuration}ms (NORMAL). Resetting short task counter (was ${state.shortTaskCount})`, 'info');
+        state.shortTaskCount = 0;
+      } else {
+        log(`📊 Task completed in ${taskDuration}ms (NORMAL). Short task counter remains 0`, 'info');
+      }
+    }
+    
+    log(`📊 Task tracking summary: duration=${Math.round(taskDuration/1000)}s, history_size=${state.taskHistory.length}, short_task_count=${state.shortTaskCount}`, 'info');
+    state.currentTaskStartTime = null;
+    
+    return taskDuration;
+  }
+  return null;
+}
+
+// Action function: Auto-stop logic based on task completion heuristics
+function autoStopLogic() {
+  log('🤖 Checking auto-stop logic...', 'debug');
+  
+  try {
+    // Simple heuristic: check if we've had too many retries without progress
+    if (state.retryCount > config.intervals.maxRetries * 2) {
+      log(`🛑 Too many retries (${state.retryCount}) without progress, triggering auto-stop`, 'warn');
+      return true;
+    }
+
+    // Enhanced auto-stop using shortTaskCount: stop if we have consecutive fast tasks
+    const consecutiveFastTaskThreshold = config.intervals.maxConsecutiveFastTasks;
+    if (state.shortTaskCount >= consecutiveFastTaskThreshold) {
+      log('🛑 AUTO-STOP TRIGGERED: Detected ' + state.shortTaskCount + ' consecutive fast tasks (threshold: ' + consecutiveFastTaskThreshold + ')', 'warn');
+      log('📊 Fast task detection indicates AI may be completing trivial tasks or stuck in a loop', 'info');
+      return true;
+    }
+
+    // Fallback auto-stop heuristic: check if last 3 tasks were all completed under threshold
+    if (state.taskHistory.length >= 3) {
+      const recentTasks = state.taskHistory.slice(-3); // Get last 3 tasks
+      const maxTaskDuration = config.intervals.fastTaskThreshold; // Use configurable threshold
+      
+      const allTasksWereShort = recentTasks.every(task => task.duration < maxTaskDuration);
+      const totalTime = recentTasks.reduce((sum, task) => sum + task.duration, 0);
+      const maxTotalTime = 60000; // 1 minute in milliseconds
+      
+      log('📊 Auto-stop analysis:', 'debug', {
+        shortTaskCount: state.shortTaskCount,
+        recentTaskCount: recentTasks.length,
+        taskDurations: recentTasks.map(t => `${Math.round(t.duration / 1000)}s`),
+        allTasksUnder20s: allTasksWereShort,
+        totalTime: `${Math.round(totalTime / 1000)}s`,
+        totalUnder60s: totalTime < maxTotalTime
+      });
+      
+      if (allTasksWereShort && totalTime < maxTotalTime) {
+        log('🛑 AUTO-STOP TRIGGERED: Last 3 tasks completed rapidly (all under ' + Math.round(maxTaskDuration/1000) + 's each, total under 60s)', 'warn');
+        log('📊 Task completion summary:', 'info', recentTasks.map((task, i) => 
+          `Task ${i+1}: ${Math.round(task.duration / 1000)}s (${task.startTime.toLocaleTimeString()} - ${task.endTime.toLocaleTimeString()})`
+        ));
+        return true;
+      }
+    } else {
+      log(`📊 Not enough task history for fallback auto-stop analysis (${state.taskHistory.length}/3 tasks)`, 'debug');
+    }
+    
+    log(`✅ Auto-stop conditions not met (short_tasks: ${state.shortTaskCount}/${consecutiveFastTaskThreshold}), continuing operation`, 'debug');
+    return false;
+  } catch (error) {
+    log('❌ Error in autoStopLogic:', 'error', error);
+    return false; // Don't stop on error
   }
 }
 
 function init() {
-  console.log('%c=== VS Code Copilot Auto-Continue v2.3 STARTING ===', 'font-weight: bold; color: #2196F3;');
+  log('=== VS Code Copilot Auto-Continue v2.3 STARTING ===', 'info');
 
   try {
-    // Check for multiple instances
-    if (window.autoContinueInstanceId && window.autoContinueInstanceId !== 'stopped') {
-      console.warn('[auto] ⚠️  Multiple instances detected, cleaning up...');
-
-      if (typeof window.autoContinueIntervals !== 'undefined') {
-        window.autoContinueIntervals.forEach(id => {
-          try {
-            clearInterval(id);
-          } catch (e) {}
-        });
-      }
-      if (typeof window.autoContinueObservers !== 'undefined') {
-        window.autoContinueObservers.forEach(obs => {
-          try {
-            obs.disconnect();
-          } catch (e) {}
-        });
-      }
-    }
-
-    // Set unique instance ID
-    window.autoContinueInstanceId = 'instance_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-    window.autoContinueIntervals = [];
-    window.autoContinueObservers = [];
-
-    // Clean up existing automation
+    // Clean up existing automation if present
     if (window.autoContinue && window.autoContinue.stop) {
-      const originalStop = window.autoContinue.stop;
-      window.autoContinue.stop = function() {
-        try {
-          if (intervalId) {
-            clearInterval(intervalId);
-            intervalId = null;
-          }
-          if (observer) {
-            observer.disconnect();
-            observer = null;
-          }
-          if (window.autoCheckTimeout) {
-            clearTimeout(window.autoCheckTimeout);
-          }
-
-          lastClick = 0;
-          isProcessing = false;
-          retryCount = 0;
-
-          return true;
-        } catch (error) {
-          console.error('[auto] ❌ Error during cleanup:', error);
-          return false;
-        }
-      };
-
       window.autoContinue.stop();
-      window.autoContinue.stop = originalStop;
     }
 
     // Set up main interval
-    intervalId = setInterval(() => {
-      checkAndContinue().catch(console.error);
+    state.timerId = setInterval(() => {
+      mainLoop().catch(console.error);
     }, CHECK_INTERVAL);
 
-    if (window.autoContinueIntervals) {
-      window.autoContinueIntervals.push(intervalId);
-    }
+    // Set initial state
+    state.isRunning = true;
+    // Initialize lastActivityTime to current time for proper idle detection
+    state.lastActivityTime = new Date();
+    log('🔄 Initialized lastActivityTime:', 'debug', state.lastActivityTime.toISOString());
 
     // Set up cleanup interval
     const cleanupInterval = setInterval(() => {
@@ -1082,23 +1212,25 @@ function init() {
     }, 30000);
 
     window.autoCleanupInterval = cleanupInterval;
-    if (window.autoContinueIntervals) {
-      window.autoContinueIntervals.push(cleanupInterval);
-    }
-
-    setupMutationObserver();
 
     // Initial check
     setTimeout(() => {
-      checkAndContinue().catch(console.error);
+      // Check for initial AI activity and update lastActivityTime if found
+      const hasInitialActivity = isTaskActive();
+      if (hasInitialActivity) {
+        state.lastActivityTime = new Date();
+        log('🔄 Initial AI activity detected, updated lastActivityTime', 'debug');
+      }
+      
+      mainLoop().catch(console.error);
     }, 2000);
 
-    console.log('%c🚀 Auto-Continue is running!', 'color: #4CAF50; font-weight: bold;');
-    console.log('Commands: autoContinue.stop(), autoContinue.restart(), autoContinue.debug()');
+    log('🚀 Auto-Continue is running!', 'success');
+    log('Commands: autoContinue.stop()', 'info');
 
     return true;
   } catch (error) {
-    console.error('[auto] ❌ Error initializing:', error);
+    log('❌ Error initializing:', 'error', error);
     return false;
   }
 }
@@ -1107,23 +1239,14 @@ function init() {
 const autoContinue = {
   start: init,
   stop: function() {
-    let wasRunning = intervalId !== null || observer !== null;
+    let wasRunning = state.timerId !== null;
 
     try {
       let stoppedSomething = false;
 
-      if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
-        stoppedSomething = true;
-      }
-      if (observer) {
-        observer.disconnect();
-        observer = null;
-        stoppedSomething = true;
-      }
-      if (window.autoCheckTimeout) {
-        clearTimeout(window.autoCheckTimeout);
+      if (state.timerId) {
+        clearInterval(state.timerId);
+        state.timerId = null;
         stoppedSomething = true;
       }
       if (window.autoCleanupInterval) {
@@ -1131,30 +1254,15 @@ const autoContinue = {
         stoppedSomething = true;
       }
 
-      // Clean up tracked intervals and observers
-      if (window.autoContinueIntervals) {
-        window.autoContinueIntervals.forEach(id => {
-          try {
-            clearInterval(id);
-          } catch (e) {}
-        });
-        window.autoContinueIntervals = [];
-      }
-
-      if (window.autoContinueObservers) {
-        window.autoContinueObservers.forEach(obs => {
-          try {
-            obs.disconnect();
-          } catch (e) {}
-        });
-        window.autoContinueObservers = [];
-      }
-
       // Reset state
-      lastClick = Date.now();
-      isProcessing = false;
-      retryCount = 0;
-      window.autoContinueInstanceId = 'stopped';
+      state.lastClick = Date.now();
+      state.isProcessing = false;
+      state.retryCount = 0;
+      state.isRunning = false;
+      // Reset task tracking state
+      state.taskHistory = [];
+      state.currentTaskStartTime = null;
+      state.shortTaskCount = 0; // Reset consecutive fast task counter
 
       // Clear click markers
       try {
@@ -1163,73 +1271,135 @@ const autoContinue = {
       } catch (e) {}
 
       if (stoppedSomething) {
-        console.log('%c[auto] 🛑 Automation stopped successfully', 'color: #f44336; font-weight: bold;');
+        log('🛑 Automation stopped successfully', 'success');
       }
 
       return true;
     } catch (error) {
-      console.error('[auto] ❌ Error stopping automation:', error);
+      log('❌ Error stopping automation:', error);
       return false;
     }
-  },
-  restart: function() {
-    console.log('[auto] 🔄 Restarting automation...');
-    this.stop();
-    setTimeout(() => {
-      this.start();
-    }, 1000);
-  },
-  debug: function() {
-    const info = {
-      status: intervalId ? 'RUNNING' : 'STOPPED',
-      lastClick: lastClick ? new Date(lastClick).toISOString() : 'Never',
-      isProcessing,
-      retryCount,
-      debugMode,
-      settings: {
-        checkInterval: CHECK_INTERVAL,
-        buttonCooldown: BUTTON_COOLDOWN_MS,
-        maxRetries: MAX_RETRIES
-      },
-      currentState: {
-        isTaskActive: isTaskActive(),
-        inputReady: !!isInputReady(),
-        timeSinceLastClick: Date.now() - lastClick
-      }
-    };
-
-    console.table(info.settings);
-    console.table(info.currentState);
-    console.log('[auto] Full debug info:', info);
-    return info;
-  },
-  toggle: function() {
-    debugMode = !debugMode;
-    console.log(`[auto] 🔧 Debug mode ${debugMode ? 'ENABLED' : 'DISABLED'}`);
-    return debugMode;
-  },
-  forceAction: function() {
-    console.log('[auto] 🔧 Forcing action check...');
-    checkAndContinue().catch(console.error);
-  },
-  version: '2.3.0'
+  }
 };
 
 window.autoContinue = autoContinue;
 
 // Auto-start
-console.log('[auto] 🔍 Checking for existing instances...');
+log('🔍 Checking for existing instances...', 'info');
 if (typeof window.autoContinue !== 'undefined' && window.autoContinue && typeof window.autoContinue.stop === 'function') {
-  console.log('[auto] ⚠️  Stopping existing instance...');
+  log('⚠️  Stopping existing instance...', 'warn');
   try {
     window.autoContinue.stop();
-    console.log('[auto] ✅ Previous instance stopped');
+    log('✅ Previous instance stopped', 'success');
   } catch (error) {
-    console.warn('[auto] ⚠️  Error stopping previous instance:', error);
+    log('⚠️  Error stopping previous instance:', error);
   }
   setTimeout(() => {
     init();
   }, 500);
 } else {
   init();
+}
+
+// Helper function: Click button by text content (fallback method)
+function clickButtonByText(buttonName) {
+  try {
+    log(`🔍 Searching for '${buttonName}' button by text content...`, 'debug');
+    
+    const allButtons = Array.from(document.querySelectorAll(
+      'button, a[role="button"], .monaco-button, .action-label'
+    ));
+    
+    const textMatchButtons = allButtons.filter(btn => {
+      const text = (btn.textContent || btn.getAttribute('aria-label') || btn.getAttribute('title') || '')
+        .toLowerCase().trim();
+      return text.includes(buttonName.toLowerCase());
+    });
+
+    if (textMatchButtons.length === 0) {
+      log(`🔍 No buttons found with text matching '${buttonName}'`, 'debug');
+      return false;
+    }
+
+    const button = textMatchButtons.find(btn => {
+      try {
+        const rect = btn.getBoundingClientRect();
+        const style = window.getComputedStyle(btn);
+        const isVisible = rect.width > 0 && rect.height > 0 &&
+                         btn.offsetParent !== null &&
+                         style.display !== 'none' &&
+                         style.visibility !== 'hidden' &&
+                         style.opacity !== '0';
+
+        const isEnabled = !btn.disabled &&
+                         btn.getAttribute('aria-disabled') !== 'true' &&
+                         !btn.hasAttribute('disabled');
+
+        const alreadyClicked = btn.getAttribute('data-auto-continue-clicked') === 'true';
+
+        return isVisible && isEnabled && !alreadyClicked;
+      } catch (e) {
+        return false;
+      }
+    });
+
+    if (!button) {
+      log(`🔍 No clickable button found with text matching '${buttonName}'`, 'debug');
+      return false;
+    }
+
+    // Use the clickButton function with a custom selector approach
+    // Since we already have the element, we'll directly click it
+    const now = Date.now();
+    if (now - state.lastClick < config.intervals.buttonCooldown) {
+      log(`⏱️ Button cooldown active, skipping text-based click`, 'debug');
+      return false;
+    }
+
+    try {
+      const buttonText = (button.textContent || button.getAttribute('aria-label') || button.getAttribute('title') || '').trim();
+
+      // Final validation
+      const rect = button.getBoundingClientRect();
+      const isStillVisible = rect.width > 0 && rect.height > 0 && button.offsetParent !== null;
+      const isStillEnabled = !button.disabled && button.getAttribute('aria-disabled') !== 'true';
+
+      if (!isStillVisible || !isStillEnabled) {
+        log(`🚫 Text-matched button no longer clickable: ${buttonText}`, 'debug');
+        return false;
+      }
+
+      // Mark as clicked
+      button.setAttribute('data-auto-continue-clicked', 'true');
+      
+      // Scroll into view
+      button.scrollIntoView({ block: 'center', inline: 'center' });
+
+      // Create and dispatch click event
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+      clickEvent.autoContinueSource = true;
+
+      const clickResult = button.dispatchEvent(clickEvent);
+
+      if (clickResult) {
+        state.lastClick = now;
+        state.retryCount = 0;
+        log(`🎯 Successfully clicked '${buttonName}' button by text: "${buttonText}"`, 'success');
+        return true;
+      } else {
+        log(`❌ Text-based click event failed for: "${buttonText}"`, 'warn');
+        return false;
+      }
+    } catch (clickError) {
+      log(`❌ Error clicking text-matched '${buttonName}' button:`, 'error', clickError);
+      return false;
+    }
+  } catch (error) {
+    log(`❌ Critical error in clickButtonByText(${buttonName}):`, 'error', error);
+    return false;
+  }
 }
