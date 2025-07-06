@@ -478,41 +478,234 @@ async function sendPrompt() {
       console.log('[auto] 🧠 Storing previously focused element:', previouslyFocusedElement);
 
       console.log('[auto] 📝 Input field found, setting prompt text...');
-      input.focus();
+      console.log('[auto] 📝 Input details:', {
+        tag: input.tagName,
+        type: input.type || 'textarea',
+        contentEditable: input.contentEditable,
+        classes: input.className
+      });
+
+      // Ensure input field is focused
+      console.log('[auto] 🎯 Ensuring input field is focused...');
       
-      // Clear the input field first
-      document.execCommand('selectAll', false, null);
-      document.execCommand('delete', false, null);
+      // Focus parent containers that might contain Monaco editor
+      const chatContainer = input.closest('.chat-container, .copilot-chat, .interactive-session, .interactive-input-part');
+      if (chatContainer) {
+        chatContainer.focus();
+        console.log('[auto] ✅ Focused chat container');
+      }
+      
+      const editorContainer = input.closest('.monaco-editor, .chat-editor-container, .interactive-input-editor');
+      if (editorContainer) {
+        editorContainer.focus();
+        console.log('[auto] ✅ Focused editor container');
+      }
+      
+      input.focus();
+      console.log('[auto] ✅ Focused input element');
+      
+      // Try to click the input to ensure proper focus for Monaco
+      const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
+      input.dispatchEvent(clickEvent);
+      console.log('[auto] ✅ Triggered Monaco focus via click');
+      
+      // Short delay to ensure focus is established
+      await new Promise(resolve => setTimeout(resolve, 100));
 
-      // Simulate typing character by character
-      for (let i = 0; i < prompt.length; i++) {
-        const char = prompt[i];
-        const charCode = char.charCodeAt(0);
+      console.log('[auto] 📝 Setting prompt text in input field...');
 
-        // Simulate keydown, keypress, and keyup events
-        input.dispatchEvent(new KeyboardEvent('keydown', { key: char, charCode: charCode, keyCode: charCode, which: charCode, bubbles: true, cancelable: true }));
-        input.dispatchEvent(new KeyboardEvent('keypress', { key: char, charCode: charCode, keyCode: charCode, which: charCode, bubbles: true, cancelable: true }));
-        
-        // Insert the character
-        document.execCommand('insertText', false, char);
+      // Try Monaco editor approach first
+      let promptSetSuccessfully = false;
+      
+      if (input.closest('.monaco-editor')) {
+        console.log('[auto] 🎯 Detected Monaco editor, using Monaco setValue method...');
+        try {
+          // Look for Monaco editor instance in various ways
+          let monacoEditor = null;
+          
+          // Method 1: Check if the input element has a Monaco editor attached
+          if (input._monacoEditor) {
+            monacoEditor = input._monacoEditor;
+          }
+          // Method 2: Look for editor in parent elements
+          else {
+            const editorContainer = input.closest('.monaco-editor');
+            if (editorContainer && editorContainer._monacoEditor) {
+              monacoEditor = editorContainer._monacoEditor;
+            }
+          }
+          
+          // Method 3: Try to access global Monaco API
+          if (!monacoEditor && typeof window.monaco !== 'undefined') {
+            const editors = window.monaco.editor.getEditors?.() || [];
+            for (const editor of editors) {
+              const editorDomNode = editor.getDomNode();
+              if (editorDomNode && (editorDomNode.contains(input) || editorDomNode === input.closest('.monaco-editor'))) {
+                monacoEditor = editor;
+                break;
+              }
+            }
+          }
 
-        input.dispatchEvent(new KeyboardEvent('keyup', { key: char, charCode: charCode, keyCode: charCode, which: charCode, bubbles: true, cancelable: true }));
-        
-        // Small delay between characters to mimic human typing
-        await new Promise(resolve => setTimeout(resolve, 5));
+          if (monacoEditor) {
+            // Use Monaco editor setValue method
+            monacoEditor.setValue(prompt);
+            console.log('[auto] ✅ Set prompt using Monaco setValue method');
+            promptSetSuccessfully = true;
+          } else {
+            console.log('[auto] ⚠️ Monaco instance not found, using direct value assignment');
+          }
+        } catch (monacoError) {
+          console.log('[auto] ⚠️ Monaco editor access failed:', monacoError.message);
+        }
       }
 
-      console.log('[auto] ✅ Prompt text typed into the input field.');
+      // Fallback methods if Monaco approach didn't work
+      if (!promptSetSuccessfully) {
+        console.log('[auto] 🔄 Using fallback text setting methods...');
+        
+        // Method 1: For contenteditable elements
+        if (input.contentEditable === 'true' || input.getAttribute('contenteditable') === 'true') {
+          console.log('[auto] 📝 Setting text for contenteditable element...');
+          input.textContent = prompt;
+          input.innerText = prompt;
+          
+          // Trigger input events
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          promptSetSuccessfully = true;
+        }
+        // Method 2: For textarea/input elements
+        else if (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT') {
+          console.log('[auto] 📝 Setting value for textarea/input element...');
+          input.value = prompt;
+          
+          // Trigger input events
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          promptSetSuccessfully = true;
+        }
+        // Method 3: Use modern insertText approach
+        else {
+          console.log('[auto] 📝 Using insertText approach...');
+          try {
+            // Clear existing content first
+            input.focus();
+            document.execCommand('selectAll', false, null);
+            
+            // Insert the full prompt at once
+            const success = document.execCommand('insertText', false, prompt);
+            if (success) {
+              console.log('[auto] ✅ Prompt set using insertText command');
+              promptSetSuccessfully = true;
+            }
+          } catch (insertError) {
+            console.log('[auto] ⚠️ insertText failed:', insertError.message);
+          }
+        }
+      }
 
-      // Press Enter to send the prompt
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
-      console.log('[auto] ✅ "Enter" key pressed to send prompt.');
+      // Final verification
+      const currentValue = input.value || input.textContent || input.innerText || '';
+      console.log('[auto] 🔍 Final verification - prompt set correctly:', currentValue.includes(prompt.substring(0, 50)));
+      
+      if (!promptSetSuccessfully) {
+        console.log('[auto] ❌ Failed to set prompt text properly');
+        return false;
+      }
+
+      // Try to find and click send button
+      console.log('[auto] 🔍 Looking for send button...');
+      
+      const sendButtonSelectors = [
+        '.interactive-input-part button[aria-label*="Send"]:not([disabled])',
+        '.interactive-input-part button[title*="Send"]:not([disabled])',
+        '.chat-input-container button[aria-label*="Send"]:not([disabled])',
+        '.chat-input-container button[title*="Send"]:not([disabled])',
+        '.chat-input-toolbars button:not([disabled])',
+        '.interactive-input-and-side-toolbar button:not([disabled])',
+        'button[aria-label*="Send"]:not([disabled])',
+        'button[title*="Send"]:not([disabled])',
+        'button[aria-label*="Submit"]:not([disabled])',
+        'button[title*="Submit"]:not([disabled])',
+        'button[type="submit"]:not([disabled])',
+        '.send-button:not([disabled])',
+        '.submit-button:not([disabled])',
+        '.chat-input button:not([disabled])',
+        '.interactive-input-part button:not([disabled])',
+        '.copilot-chat button:not([disabled])',
+        '.action-item button[title*="Send"]:not([disabled])',
+        'button.monaco-button:not([disabled])',
+        'button[class*="send"]:not([disabled])',
+        'button[class*="submit"]:not([disabled])'
+      ];
+
+      let sendButtonFound = false;
+      for (const selector of sendButtonSelectors) {
+        const buttons = Array.from(document.querySelectorAll(selector));
+        console.log(`[auto] 🔍 Found ${buttons.length} candidates for selector: ${selector}`);
+        
+        const sendButton = buttons.find(btn => {
+          const rect = btn.getBoundingClientRect();
+          const isVisible = rect.width > 0 && rect.height > 0 && btn.offsetParent !== null;
+          const isEnabled = !btn.disabled && btn.getAttribute('aria-disabled') !== 'true';
+          return isVisible && isEnabled;
+        });
+        
+        if (sendButton) {
+          console.log('[auto] 🎯 Found send button, clicking...');
+          sendButton.click();
+          sendButtonFound = true;
+          break;
+        }
+      }
+
+      // If no send button found, use Enter key
+      if (!sendButtonFound) {
+        console.log('[auto] ⌨️ No send button found, trying multiple Enter key approaches...');
+        
+        input.focus();
+        
+        // Try multiple Enter key approaches
+        const enterEvents = [
+          new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }),
+          new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }),
+          new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true })
+        ];
+        
+        for (const event of enterEvents) {
+          input.dispatchEvent(event);
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+        
+        // Also try on parent containers
+        const containers = [
+          input.closest('.chat-editor-container'),
+          input.closest('.interactive-input-part'),
+          input.closest('.monaco-editor')
+        ].filter(Boolean);
+        
+        for (const container of containers) {
+          container.dispatchEvent(new KeyboardEvent('keydown', { 
+            key: 'Enter', 
+            code: 'Enter', 
+            keyCode: 13, 
+            which: 13, 
+            bubbles: true, 
+            cancelable: true 
+          }));
+        }
+        
+        console.log('[auto] ✅ Prompt sent via Enter key combinations');
+      }
 
       // Restore focus to the previously active element
       if (previouslyFocusedElement && typeof previouslyFocusedElement.focus === 'function') {
-        console.log('[auto] ↩️ Restoring focus to previous element...');
+        console.log('[auto] ↩️ Restoring focus to previous element:', previouslyFocusedElement);
         previouslyFocusedElement.focus();
+        console.log('[auto] ✅ Focus restored successfully.');
       }
+      
       return true;
     } else {
       console.log('[auto] ❌ No input field available for sending prompt');

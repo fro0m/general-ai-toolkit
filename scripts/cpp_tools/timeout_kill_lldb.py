@@ -310,18 +310,19 @@ def auto_activate():
         if not debugger:
             return
         
+        # Only activate if we already have a valid running/stopped process
         target = debugger.GetSelectedTarget()
-        
         if target:
             process = target.GetProcess()
-            if process and process.IsValid() and process.GetState() not in [lldb.eStateInvalid, lldb.eStateUnloaded]:
+            if (process and process.IsValid() and 
+                process.GetState() in [lldb.eStateRunning, lldb.eStateStopped]):
                 setup_timeout(debugger, None, None, None)
                 return
         
-        # Set up monitoring that will activate when a process starts
+        # Set up monitoring that will activate when a process actually starts running
         def delayed_monitor():
-            max_wait = 30  # Wait up to 30 seconds for a process to start
-            wait_interval = 0.5
+            max_wait = 60  # Wait up to 60 seconds for a process to start running
+            wait_interval = 1.0  # Check every 1 second to be less intrusive
             waited = 0
             
             while waited < max_wait:
@@ -329,13 +330,16 @@ def auto_activate():
                     target = debugger.GetSelectedTarget()
                     if target:
                         process = target.GetProcess()
-                        if process and process.IsValid() and process.GetState() not in [lldb.eStateInvalid, lldb.eStateUnloaded, lldb.eStateDetached]:
-                            # Make sure process is actually running or stopped (not just loaded)
-                            if process.GetState() in [lldb.eStateRunning, lldb.eStateStopped]:
+                        if (process and process.IsValid() and 
+                            process.GetState() == lldb.eStateRunning):
+                            # Wait a bit more to ensure process is fully started
+                            time.sleep(2)
+                            # Double-check it's still running
+                            if process.GetState() == lldb.eStateRunning:
                                 setup_timeout(debugger, None, None, None)
                                 return
-                except:
-                    pass
+                except Exception:
+                    pass  # Silently ignore errors during startup
                 
                 time.sleep(wait_interval)
                 waited += wait_interval
@@ -345,7 +349,7 @@ def auto_activate():
         monitor_thread.daemon = True
         monitor_thread.start()
         
-    except Exception as e:
+    except Exception:
         # Don't print errors during import - this is expected during startup
         pass
 
@@ -367,7 +371,14 @@ def start_monitoring():
             print("INFO: No valid process available yet")
             return
             
-        setup_timeout(debugger, None, None, None)
+        # Only start monitoring if process is actually running
+        process_state = process.GetState()
+        if process_state == lldb.eStateRunning:
+            setup_timeout(debugger, None, None, None)
+        elif process_state == lldb.eStateStopped:
+            print("INFO: Process is stopped, will monitor when it starts running")
+        else:
+            print(f"INFO: Process state is {process_state}, waiting for it to run")
         
     except Exception as e:
         print(f"INFO: Exception in start_monitoring (normal during startup): {str(e)}")
@@ -383,9 +394,21 @@ def __lldb_init_module(debugger, internal_dict):
 # Auto-activate when imported directly (not as an lldb script)
 if __name__ != '__main__':
     try:
-        # Check if we're in an lldb context
-        if 'lldb' in globals() and hasattr(lldb, 'debugger'):
-            # Only use delayed activation to avoid premature process access
-            auto_activate()
-    except:
+        # Check if we're in an lldb context, but don't try to access process immediately
+        if 'lldb' in globals():
+            # Use a very delayed activation to ensure LLDB is fully initialized
+            # and the process has had time to load all libraries
+            def very_delayed_activation():
+                time.sleep(5)  # Wait 5 seconds before even trying
+                try:
+                    if hasattr(lldb, 'debugger') and lldb.debugger:
+                        auto_activate()
+                except Exception:
+                    pass  # Silently fail
+            
+            # Start the delayed activation in a background thread
+            activation_thread = threading.Thread(target=very_delayed_activation)
+            activation_thread.daemon = True
+            activation_thread.start()
+    except Exception:
         pass  # Silently fail if not in lldb context
