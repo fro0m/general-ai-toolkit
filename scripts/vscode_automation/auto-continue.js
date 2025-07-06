@@ -218,6 +218,8 @@ const state = {
   lastClick: Date.now(),
   isProcessing: false,
   retryCount: 0,
+  // Cleanup counter for periodic maintenance tasks
+  cleanupCounter: 0,
   debugMode: false,
   // Auto-stop functionality tracking
   taskHistory: [],          // Array to track recent task completion times
@@ -944,6 +946,21 @@ async function mainLoop() {
   log(`[${checkId}] 🔄 ===== MAIN LOOP ITERATION =====`, 'info');
 
   try {
+    // Periodic cleanup of clicked button markers (every ~30 seconds)
+    state.cleanupCounter++;
+    if (state.cleanupCounter >= 30) { // ~30 seconds at 1-second intervals
+      try {
+        const clickedButtons = document.querySelectorAll('[data-auto-continue-clicked="true"]');
+        if (clickedButtons.length > 0) {
+          clickedButtons.forEach(btn => btn.removeAttribute('data-auto-continue-clicked'));
+          log(`🧹 Cleaned up ${clickedButtons.length} button markers`, 'debug');
+        }
+      } catch (e) {
+        log('⚠️ Error during cleanup:', 'warn', e);
+      }
+      state.cleanupCounter = 0;
+    }
+
     // 1. Call checkForButtons() to find and click any actionable buttons
     const buttonClicked = checkForButtons();
     if (buttonClicked) {
@@ -1201,29 +1218,15 @@ function init() {
     state.lastActivityTime = new Date();
     log('🔄 Initialized lastActivityTime:', 'debug', state.lastActivityTime.toISOString());
 
-    // Set up cleanup interval
-    const cleanupInterval = setInterval(() => {
-      try {
-        const clickedButtons = document.querySelectorAll('[data-auto-continue-clicked="true"]');
-        if (clickedButtons.length > 0) {
-          clickedButtons.forEach(btn => btn.removeAttribute('data-auto-continue-clicked'));
-        }
-      } catch (e) {}
-    }, 30000);
-
-    window.autoCleanupInterval = cleanupInterval;
-
-    // Initial check
-    setTimeout(() => {
-      // Check for initial AI activity and update lastActivityTime if found
-      const hasInitialActivity = isTaskActive();
-      if (hasInitialActivity) {
-        state.lastActivityTime = new Date();
-        log('🔄 Initial AI activity detected, updated lastActivityTime', 'debug');
-      }
-      
-      mainLoop().catch(console.error);
-    }, 2000);
+    // Check for initial AI activity and update lastActivityTime if found
+    const hasInitialActivity = isTaskActive();
+    if (hasInitialActivity) {
+      state.lastActivityTime = new Date();
+      log('🔄 Initial AI activity detected, updated lastActivityTime', 'debug');
+    }
+    
+    // Start the main loop immediately
+    mainLoop().catch(console.error);
 
     log('🚀 Auto-Continue is running!', 'success');
     log('Commands: autoContinue.stop()', 'info');
@@ -1247,10 +1250,6 @@ const autoContinue = {
       if (state.timerId) {
         clearInterval(state.timerId);
         state.timerId = null;
-        stoppedSomething = true;
-      }
-      if (window.autoCleanupInterval) {
-        clearInterval(window.autoCleanupInterval);
         stoppedSomething = true;
       }
 
