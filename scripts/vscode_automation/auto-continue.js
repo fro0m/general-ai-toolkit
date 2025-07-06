@@ -686,12 +686,62 @@ async function sendPrompt() {
           }
 
           if (monacoEditor) {
-            // Use Monaco editor setValue method
+            // Clear the editor first
+            monacoEditor.setValue('');
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+            // Set the full prompt
             monacoEditor.setValue(prompt);
-            log('✅ Set prompt using Monaco setValue method', 'success');
-            promptSetSuccessfully = true;
+            
+            // Verify it was set correctly
+            const editorValue = monacoEditor.getValue();
+            if (editorValue === prompt) {
+              log('✅ Set prompt using Monaco setValue method', 'success');
+              promptSetSuccessfully = true;
+            } else {
+              log('⚠️ Monaco setValue partial success - trying enhanced method', 'warn');
+              
+              // Try alternative Monaco approach with edit operations
+              const model = monacoEditor.getModel();
+              if (model) {
+                const fullRange = model.getFullModelRange();
+                monacoEditor.executeEdits('auto-continue', [{
+                  range: fullRange,
+                  text: prompt
+                }]);
+                
+                const finalValue = monacoEditor.getValue();
+                if (finalValue === prompt) {
+                  log('✅ Set prompt using Monaco executeEdits method', 'success');
+                  promptSetSuccessfully = true;
+                } else {
+                  log('⚠️ Monaco executeEdits failed, value mismatch', 'warn');
+                }
+              }
+            }
           } else {
-            log('⚠️ Monaco instance not found, using direct value assignment', 'warn');
+            log('⚠️ Monaco instance not found, using clipboard fallback method', 'warn');
+            
+            // Try clipboard approach for complex Monaco editors
+            try {
+              await navigator.clipboard.writeText(prompt);
+              log('✅ Copied prompt to clipboard', 'debug');
+              
+              // Select all existing text and paste
+              input.focus();
+              document.execCommand('selectAll', false, null);
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              const pasteSuccess = document.execCommand('paste', false, null);
+              if (pasteSuccess) {
+                log('✅ Pasted prompt from clipboard', 'success');
+                promptSetSuccessfully = true;
+              } else {
+                log('⚠️ Clipboard paste failed', 'warn');
+              }
+            } catch (clipboardError) {
+              log('⚠️ Clipboard operation failed:', 'warn', clipboardError.message);
+            }
           }
         } catch (monacoError) {
           log('⚠️ Monaco editor access failed:', 'warn', monacoError.message);
@@ -702,8 +752,49 @@ async function sendPrompt() {
       if (!promptSetSuccessfully) {
         log('🔄 Using fallback text setting methods...', 'debug');
         
-        // Method 1: For contenteditable elements
-        if (input.contentEditable === 'true' || input.getAttribute('contenteditable') === 'true') {
+        // Method 1: Character-by-character typing simulation for complex editors
+        if (input.closest('.monaco-editor, .interactive-input-editor')) {
+          log('📝 Using character-by-character typing simulation...', 'debug');
+          try {
+            // Clear existing content first
+            input.focus();
+            document.execCommand('selectAll', false, null);
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+            // Type character by character to avoid truncation
+            for (let i = 0; i < prompt.length; i++) {
+              const char = prompt[i];
+              const insertSuccess = document.execCommand('insertText', false, char);
+              if (!insertSuccess) {
+                // Fallback to direct keyboard events for complex characters
+                const inputEvent = new InputEvent('input', {
+                  inputType: 'insertText',
+                  data: char,
+                  bubbles: true,
+                  cancelable: true
+                });
+                input.dispatchEvent(inputEvent);
+              }
+              
+              // Small delay every 10 characters to prevent overwhelming the editor
+              if (i % 10 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 10));
+              }
+            }
+            
+            // Verify the result
+            const finalValue = input.value || input.textContent || input.innerText || '';
+            if (finalValue.includes(prompt.substring(0, 50)) && finalValue.length >= prompt.length * 0.9) {
+              log('✅ Character-by-character typing successful', 'success');
+              promptSetSuccessfully = true;
+            }
+          } catch (typingError) {
+            log('⚠️ Character typing simulation failed:', 'warn', typingError.message);
+          }
+        }
+        
+        // Method 2: For contenteditable elements (if typing simulation didn't work)
+        if (!promptSetSuccessfully && (input.contentEditable === 'true' || input.getAttribute('contenteditable') === 'true')) {
           log('📝 Setting text for contenteditable element...', 'debug');
           input.textContent = prompt;
           input.innerText = prompt;
@@ -713,8 +804,8 @@ async function sendPrompt() {
           input.dispatchEvent(new Event('change', { bubbles: true }));
           promptSetSuccessfully = true;
         }
-        // Method 2: For textarea/input elements
-        else if (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT') {
+        // Method 3: For textarea/input elements
+        else if (!promptSetSuccessfully && (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT')) {
           log('📝 Setting value for textarea/input element...', 'debug');
           input.value = prompt;
           
@@ -723,8 +814,8 @@ async function sendPrompt() {
           input.dispatchEvent(new Event('change', { bubbles: true }));
           promptSetSuccessfully = true;
         }
-        // Method 3: Use modern insertText approach
-        else {
+        // Method 4: Use modern insertText approach
+        else if (!promptSetSuccessfully) {
           log('📝 Using insertText approach...', 'debug');
           try {
             // Clear existing content first
@@ -743,9 +834,23 @@ async function sendPrompt() {
         }
       }
 
-      // Final verification
+      // Enhanced verification and debugging
       const currentValue = input.value || input.textContent || input.innerText || '';
-      log('🔍 Final verification - prompt set correctly:', currentValue.includes(prompt.substring(0, 50)));
+      const promptLength = prompt.length;
+      const currentLength = currentValue.length;
+      const matchesStart = currentValue.startsWith(prompt.substring(0, Math.min(50, promptLength)));
+      const matchesFull = currentValue === prompt;
+      
+      log('🔍 Enhanced verification:', 'debug', {
+        'Expected length': promptLength,
+        'Actual length': currentLength,
+        'Matches start (50 chars)': matchesStart,
+        'Matches full prompt': matchesFull,
+        'Expected prompt preview': prompt.substring(0, 100) + (prompt.length > 100 ? '...' : ''),
+        'Actual value preview': currentValue.substring(0, 100) + (currentValue.length > 100 ? '...' : '')
+      });
+      
+      log('🔍 Final verification - prompt set correctly:', matchesFull || (matchesStart && currentLength >= promptLength * 0.9));
       
       if (!promptSetSuccessfully) {
         log('❌ Failed to set prompt text properly', 'error');
