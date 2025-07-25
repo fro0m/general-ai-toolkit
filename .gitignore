@@ -48,3 +48,5 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 dashboard.log
+scripts/cpp_tools/output.db
+scripts/cpp_tools/cpp_analysis_report.txt

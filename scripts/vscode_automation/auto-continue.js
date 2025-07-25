@@ -117,6 +117,7 @@ const config = {
     buttonCooldown: 3000,     // Cooldown between button clicks (ms)
     checkInterval: 5000,      // Main loop check interval (ms)
     maxRetries: 3,            // Maximum retry attempts
+    maxPromptAttempts: 3,     // Maximum attempts to set prompt text
     fastTaskThreshold: 20000, // Task duration threshold for "fast" tasks (ms)
     maxConsecutiveFastTasks: 3 // Auto-stop after this many consecutive fast tasks
   }
@@ -652,209 +653,519 @@ async function sendPrompt() {
 
       log('📝 Setting prompt text in input field...', 'info');
 
-      // Try Monaco editor approach first
+      // Enhanced prompt setting with multiple verification attempts
       let promptSetSuccessfully = false;
+      let attemptCount = 0;
+      const maxAttempts = config.intervals.maxPromptAttempts;
       
+      // Enhanced Monaco editor approach with multiple fallback methods
       if (input.closest('.monaco-editor')) {
-        log('🎯 Detected Monaco editor, using Monaco setValue method...', 'debug');
-        try {
-          // Look for Monaco editor instance in various ways
-          let monacoEditor = null;
+        log('🎯 Detected Monaco editor, using enhanced Monaco methods...', 'debug');
+        
+        // Declare monacoEditor outside the loop for proper scope
+        let monacoEditor = null;
+        while (!promptSetSuccessfully && attemptCount < maxAttempts) {
+          attemptCount++;
+          log(`📝 Monaco attempt ${attemptCount}/${maxAttempts}`, 'debug');
           
-          // Method 1: Check if the input element has a Monaco editor attached
-          if (input._monacoEditor) {
-            monacoEditor = input._monacoEditor;
-          }
-          // Method 2: Look for editor in parent elements
-          else {
-            const editorContainer = input.closest('.monaco-editor');
-            if (editorContainer && editorContainer._monacoEditor) {
-              monacoEditor = editorContainer._monacoEditor;
+          try {
+            // Look for Monaco editor instance in various ways
+            // Method 1: Check if the input element has a Monaco editor attached
+            if (input._monacoEditor) {
+              monacoEditor = input._monacoEditor;
             }
-          }
-          
-          // Method 3: Try to access global Monaco API
-          if (!monacoEditor && typeof window.monaco !== 'undefined') {
-            const editors = window.monaco.editor.getEditors?.() || [];
-            for (const editor of editors) {
-              const editorDomNode = editor.getDomNode();
-              if (editorDomNode && (editorDomNode.contains(input) || editorDomNode === input.closest('.monaco-editor'))) {
-                monacoEditor = editor;
-                break;
+            // Method 2: Look for editor in parent elements
+            else {
+              const editorContainer = input.closest('.monaco-editor');
+              if (editorContainer && editorContainer._monacoEditor) {
+                monacoEditor = editorContainer._monacoEditor;
               }
             }
-          }
-
-          if (monacoEditor) {
-            // Clear the editor first
-            monacoEditor.setValue('');
-            await new Promise(resolve => setTimeout(resolve, 50));
             
-            // Set the full prompt
-            monacoEditor.setValue(prompt);
-            
-            // Verify it was set correctly
-            const editorValue = monacoEditor.getValue();
-            if (editorValue === prompt) {
-              log('✅ Set prompt using Monaco setValue method', 'success');
-              promptSetSuccessfully = true;
-            } else {
-              log('⚠️ Monaco setValue partial success - trying enhanced method', 'warn');
-              
-              // Try alternative Monaco approach with edit operations
-              const model = monacoEditor.getModel();
-              if (model) {
-                const fullRange = model.getFullModelRange();
-                monacoEditor.executeEdits('auto-continue', [{
-                  range: fullRange,
-                  text: prompt
-                }]);
-                
-                const finalValue = monacoEditor.getValue();
-                if (finalValue === prompt) {
-                  log('✅ Set prompt using Monaco executeEdits method', 'success');
-                  promptSetSuccessfully = true;
-                } else {
-                  log('⚠️ Monaco executeEdits failed, value mismatch', 'warn');
+            // Method 3: Try to access global Monaco API
+            if (!monacoEditor && typeof window.monaco !== 'undefined') {
+              const editors = window.monaco.editor.getEditors?.() || [];
+              for (const editor of editors) {
+                const editorDomNode = editor.getDomNode();
+                if (editorDomNode && (editorDomNode.contains(input) || editorDomNode === input.closest('.monaco-editor'))) {
+                  monacoEditor = editor;
+                  break;
                 }
               }
             }
-          } else {
-            log('⚠️ Monaco instance not found, using clipboard fallback method', 'warn');
-            
-            // Try clipboard approach for complex Monaco editors
-            try {
-              await navigator.clipboard.writeText(prompt);
-              log('✅ Copied prompt to clipboard', 'debug');
+
+            if (monacoEditor) {
+              // Method A: Direct setValue with verification
+              if (attemptCount === 1) {
+                monacoEditor.setValue('');
+                await new Promise(resolve => setTimeout(resolve, 100));
+                monacoEditor.setValue(prompt);
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                const editorValue = monacoEditor.getValue();
+                if (editorValue === prompt) {
+                  log('✅ Set prompt using Monaco setValue method', 'success');
+                  promptSetSuccessfully = true;
+                } else {
+                  log(`⚠️ Monaco setValue verification failed. Expected: ${prompt.length} chars, Got: ${editorValue.length} chars`, 'warn');
+                }
+              }
               
-              // Select all existing text and paste
+              // Method B: executeEdits with full range replacement
+              if (!promptSetSuccessfully && attemptCount === 2) {
+                const model = monacoEditor.getModel();
+                if (model) {
+                  const fullRange = model.getFullModelRange();
+                  monacoEditor.executeEdits('auto-continue', [{
+                    range: fullRange,
+                    text: prompt
+                  }]);
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                  const finalValue = monacoEditor.getValue();
+                  if (finalValue === prompt) {
+                    log('✅ Set prompt using Monaco executeEdits method', 'success');
+                    promptSetSuccessfully = true;
+                  } else {
+                    log(`⚠️ Monaco executeEdits verification failed. Expected: ${prompt.length} chars, Got: ${finalValue.length} chars`, 'warn');
+                  }
+                }
+              }
+              
+              // Method C: Clear and insert using composition events
+              if (!promptSetSuccessfully && attemptCount === 3) {
+                monacoEditor.setValue('');
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+              // Trigger composition events to simulate typing
+              const model = monacoEditor.getModel();
+              const position = { lineNumber: 1, column: 1 };
+              let range;
+              if (typeof window.monaco !== 'undefined' && typeof window.monaco.Range === 'function') {
+                range = new window.monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column);
+              } else if (typeof monaco !== 'undefined' && typeof monaco.Range === 'function') {
+                range = new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column);
+              } else {
+                log('❌ Monaco.Range constructor not available', 'error');
+                range = null;
+              }
+              if (range) {
+                monacoEditor.executeEdits('auto-continue', [{
+                  range: range,
+                  text: prompt
+                }]);
+                // Force editor to update
+                monacoEditor.focus();
+                await new Promise(resolve => setTimeout(resolve, 150));
+                
+                const finalValue = monacoEditor.getValue();
+                if (finalValue === prompt) {
+                  log('✅ Set prompt using Monaco composition method', 'success');
+                  promptSetSuccessfully = true;
+                } else {
+                  log(`⚠️ Monaco composition method failed. Expected: ${prompt.length} chars, Got: ${finalValue.length} chars`, 'warn');
+                }
+              }
+              log('⚠️ Monaco instance not found, will use clipboard fallback method', 'warn');
+              break; // Exit Monaco attempts and use clipboard
+            }
+            }
+          } catch (monacoError) {
+            log(`⚠️ Monaco editor attempt ${attemptCount} failed:`, 'warn', monacoError.message);
+          }
+        }
+        // If Monaco editor was not found after all attempts, log the warning and run clipboard fallback here
+        if (!monacoEditor) {
+          log('⚠️ Monaco instance not found, will use clipboard fallback method', 'warn');
+          log('🔄 Using enhanced clipboard method for Monaco editor...', 'debug');
+          try {
+            await navigator.clipboard.writeText(prompt);
+            log('✅ Copied full prompt to clipboard', 'debug');
+            
+            // Multiple clipboard paste attempts
+            for (let pasteAttempt = 1; pasteAttempt <= 2; pasteAttempt++) {
               input.focus();
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              // Select all existing text
               document.execCommand('selectAll', false, null);
               await new Promise(resolve => setTimeout(resolve, 100));
               
-              const pasteSuccess = document.execCommand('paste', false, null);
-              if (pasteSuccess) {
-                log('✅ Pasted prompt from clipboard', 'success');
-                promptSetSuccessfully = true;
+              // Paste using different methods
+              if (pasteAttempt === 1) {
+                const pasteSuccess = document.execCommand('paste', false, null);
+                if (pasteSuccess) {
+                  log('✅ Pasted prompt from clipboard using execCommand', 'success');
+                } else {
+                  log('⚠️ execCommand paste failed, trying navigator.clipboard', 'warn');
+                  continue;
+                }
               } else {
-                log('⚠️ Clipboard paste failed', 'warn');
+                try {
+                  const clipboardText = await navigator.clipboard.readText();
+                  if (clipboardText === prompt) {
+                    // Simulate paste event
+                    const pasteEvent = new ClipboardEvent('paste', {
+                      clipboardData: new DataTransfer()
+                    });
+                    pasteEvent.clipboardData.setData('text/plain', prompt);
+                    input.dispatchEvent(pasteEvent);
+                    log('✅ Pasted prompt using ClipboardEvent', 'success');
+                  }
+                } catch (clipboardReadError) {
+                  log('⚠️ Clipboard read failed:', 'warn', clipboardReadError.message);
+                }
               }
-            } catch (clipboardError) {
-              log('⚠️ Clipboard operation failed:', 'warn', clipboardError.message);
+              
+              // Verify paste result
+              await new Promise(resolve => setTimeout(resolve, 200));
+              const currentValue = input.value || input.textContent || input.innerText || '';
+              if (currentValue === prompt || currentValue.includes(prompt)) {
+                promptSetSuccessfully = true;
+                break;
+              }
             }
+          } catch (clipboardError) {
+            log('⚠️ Clipboard operation failed:', 'warn', clipboardError.message);
           }
-        } catch (monacoError) {
-          log('⚠️ Monaco editor access failed:', 'warn', monacoError.message);
         }
       }
-
-      // Fallback methods if Monaco approach didn't work
-      if (!promptSetSuccessfully) {
-        log('🔄 Using fallback text setting methods...', 'debug');
+        log('🔄 Using enhanced fallback text setting methods...', 'debug');
         
-        // Method 1: Character-by-character typing simulation for complex editors
+        // Method 1: Enhanced character-by-character typing simulation
         if (input.closest('.monaco-editor, .interactive-input-editor')) {
-          log('📝 Using character-by-character typing simulation...', 'debug');
-          try {
-            // Clear existing content first
-            input.focus();
-            document.execCommand('selectAll', false, null);
-            await new Promise(resolve => setTimeout(resolve, 50));
-            
-            // Type character by character to avoid truncation
-            for (let i = 0; i < prompt.length; i++) {
-              const char = prompt[i];
-              const insertSuccess = document.execCommand('insertText', false, char);
-              if (!insertSuccess) {
-                // Fallback to direct keyboard events for complex characters
+          log('📝 Using enhanced character-by-character typing simulation...', 'debug');
+          
+          for (let typingAttempt = 1; typingAttempt <= 2; typingAttempt++) {
+            try {
+              // Clear existing content first
+              input.focus();
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              // Select all and delete
+              document.execCommand('selectAll', false, null);
+              await new Promise(resolve => setTimeout(resolve, 50));
+              document.execCommand('delete', false, null);
+              await new Promise(resolve => setTimeout(resolve, 50));
+              
+              // Type character by character with enhanced method
+              if (typingAttempt === 1) {
+                // Method 1A: Using insertText with batching
+                const batchSize = 10;
+                for (let i = 0; i < prompt.length; i += batchSize) {
+                  const batch = prompt.substring(i, i + batchSize);
+                  const insertSuccess = document.execCommand('insertText', false, batch);
+                  if (!insertSuccess) {
+                    // Fallback to individual character events
+                    for (const char of batch) {
+                      const inputEvent = new InputEvent('input', {
+                        inputType: 'insertText',
+                        data: char,
+                        bubbles: true,
+                        cancelable: true
+                      });
+                      input.dispatchEvent(inputEvent);
+                    }
+                  }
+                  await new Promise(resolve => setTimeout(resolve, 20));
+                }
+              } else {
+                // Method 1B: Using composition events
+                const compositionStart = new CompositionEvent('compositionstart', { bubbles: true });
+                const compositionUpdate = new CompositionEvent('compositionupdate', { bubbles: true, data: prompt });
+                const compositionEnd = new CompositionEvent('compositionend', { bubbles: true, data: prompt });
+                
+                input.dispatchEvent(compositionStart);
+                await new Promise(resolve => setTimeout(resolve, 50));
+                input.dispatchEvent(compositionUpdate);
+                await new Promise(resolve => setTimeout(resolve, 50));
+                input.dispatchEvent(compositionEnd);
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Also trigger input event with full data
                 const inputEvent = new InputEvent('input', {
-                  inputType: 'insertText',
-                  data: char,
+                  inputType: 'insertCompositionText',
+                  data: prompt,
                   bubbles: true,
                   cancelable: true
                 });
                 input.dispatchEvent(inputEvent);
               }
               
-              // Small delay every 10 characters to prevent overwhelming the editor
-              if (i % 10 === 0) {
-                await new Promise(resolve => setTimeout(resolve, 10));
+              // Verify the result
+              await new Promise(resolve => setTimeout(resolve, 200));
+              const finalValue = input.value || input.textContent || input.innerText || '';
+              if (finalValue === prompt || (finalValue.includes(prompt.substring(0, 50)) && finalValue.length >= prompt.length * 0.9)) {
+                log(`✅ Character-by-character typing successful (attempt ${typingAttempt})`, 'success');
+                promptSetSuccessfully = true;
+                break;
+              } else {
+                log(`⚠️ Typing attempt ${typingAttempt} verification failed. Expected: ${prompt.length} chars, Got: ${finalValue.length} chars`, 'warn');
               }
+            } catch (typingError) {
+              log(`⚠️ Character typing simulation attempt ${typingAttempt} failed:`, 'warn', typingError.message);
             }
-            
-            // Verify the result
-            const finalValue = input.value || input.textContent || input.innerText || '';
-            if (finalValue.includes(prompt.substring(0, 50)) && finalValue.length >= prompt.length * 0.9) {
-              log('✅ Character-by-character typing successful', 'success');
-              promptSetSuccessfully = true;
-            }
-          } catch (typingError) {
-            log('⚠️ Character typing simulation failed:', 'warn', typingError.message);
           }
         }
         
-        // Method 2: For contenteditable elements (if typing simulation didn't work)
+        // Method 2: Enhanced contenteditable handling
         if (!promptSetSuccessfully && (input.contentEditable === 'true' || input.getAttribute('contenteditable') === 'true')) {
-          log('📝 Setting text for contenteditable element...', 'debug');
-          input.textContent = prompt;
-          input.innerText = prompt;
+          log('📝 Using enhanced contenteditable element handling...', 'debug');
           
-          // Trigger input events
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-          promptSetSuccessfully = true;
+          // Clear and set content using multiple approaches
+          input.textContent = '';
+          input.innerHTML = '';
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
+          // Method 2A: Direct content setting
+          input.textContent = prompt;
+          input.innerHTML = prompt.replace(/\n/g, '<br>');
+          
+          // Method 2B: Using Range API for more precise control
+          const range = document.createRange();
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          range.selectNodeContents(input);
+          selection.addRange(range);
+          
+          // Insert text using different methods
+          try {
+            document.execCommand('insertText', false, prompt);
+          } catch (e) {
+            // Fallback to direct manipulation
+            const textNode = document.createTextNode(prompt);
+            input.appendChild(textNode);
+          }
+          
+          // Trigger comprehensive events
+          const events = ['input', 'change', 'keyup', 'textInput'];
+          events.forEach(eventType => {
+            const event = eventType === 'textInput' ? 
+              new TextEvent('textInput', { data: prompt, bubbles: true }) :
+              new Event(eventType, { bubbles: true });
+            input.dispatchEvent(event);
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, 100));
+          const finalValue = input.textContent || input.innerText || '';
+          if (finalValue === prompt) {
+            log('✅ Enhanced contenteditable handling successful', 'success');
+            promptSetSuccessfully = true;
+          }
         }
-        // Method 3: For textarea/input elements
+        
+        // Method 3: Enhanced textarea/input handling
         else if (!promptSetSuccessfully && (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT')) {
-          log('📝 Setting value for textarea/input element...', 'debug');
+          log('📝 Using enhanced textarea/input element handling...', 'debug');
+          
+          // Clear and set value using multiple approaches
+          input.value = '';
+          await new Promise(resolve => setTimeout(resolve, 50));
+          
+          // Method 3A: Direct value setting with verification
           input.value = prompt;
           
-          // Trigger input events
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-          promptSetSuccessfully = true;
+          // Method 3B: Using setSelectionRange for more control
+          input.setSelectionRange(0, 0);
+          input.setSelectionRange(0, input.value.length);
+          document.execCommand('insertText', false, prompt);
+          
+          // Trigger comprehensive events
+          const events = ['input', 'change', 'keyup', 'paste'];
+          events.forEach(eventType => {
+            const event = new Event(eventType, { bubbles: true });
+            input.dispatchEvent(event);
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, 100));
+          if (input.value === prompt) {
+            log('✅ Enhanced textarea/input handling successful', 'success');
+            promptSetSuccessfully = true;
+          }
         }
-        // Method 4: Use modern insertText approach
+        
+        // Method 4: Enhanced insertText with multiple retry attempts  
         else if (!promptSetSuccessfully) {
-          log('📝 Using insertText approach...', 'debug');
-          try {
-            // Clear existing content first
-            input.focus();
-            document.execCommand('selectAll', false, null);
-            
-            // Insert the full prompt at once
-            const success = document.execCommand('insertText', false, prompt);
-            if (success) {
-              log('✅ Prompt set using insertText command', 'success');
-              promptSetSuccessfully = true;
+          log('📝 Using enhanced insertText with retry logic...', 'debug');
+          
+          for (let insertAttempt = 1; insertAttempt <= 3; insertAttempt++) {
+            try {
+              // Clear existing content
+              input.focus();
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              // Select all and prepare for insert
+              document.execCommand('selectAll', false, null);
+              await new Promise(resolve => setTimeout(resolve, 50));
+              
+              // Try different insert methods
+              if (insertAttempt === 1) {
+                // Method 4A: Single insertText command
+                const success = document.execCommand('insertText', false, prompt);
+                if (success) {
+                  log('✅ Prompt set using single insertText command', 'success');
+                }
+              } else if (insertAttempt === 2) {
+                // Method 4B: Chunked insertText
+                const chunkSize = 50;
+                for (let i = 0; i < prompt.length; i += chunkSize) {
+                  const chunk = prompt.substring(i, i + chunkSize);
+                  document.execCommand('insertText', false, chunk);
+                  await new Promise(resolve => setTimeout(resolve, 10));
+                }
+              } else {
+                // Method 4C: Keyboard simulation
+                for (const char of prompt) {
+                  const keyboardEvent = new KeyboardEvent('keydown', {
+                    key: char,
+                    char: char,
+                    bubbles: true,
+                    cancelable: true
+                  });
+                  input.dispatchEvent(keyboardEvent);
+                  
+                  const inputEvent = new InputEvent('input', {
+                    inputType: 'insertText',
+                    data: char,
+                    bubbles: true,
+                    cancelable: true
+                  });
+                  input.dispatchEvent(inputEvent);
+                  
+                  if (char === ' ' || char === '\n') {
+                    await new Promise(resolve => setTimeout(resolve, 5));
+                  }
+                }
+              }
+              
+              // Verify the result
+              await new Promise(resolve => setTimeout(resolve, 200));
+              const currentValue = input.value || input.textContent || input.innerText || '';
+              if (currentValue === prompt || (currentValue.includes(prompt.substring(0, 50)) && currentValue.length >= prompt.length * 0.85)) {
+                log(`✅ Enhanced insertText successful (attempt ${insertAttempt})`, 'success');
+                promptSetSuccessfully = true;
+                break;
+              } else {
+                log(`⚠️ InsertText attempt ${insertAttempt} verification failed. Expected: ${prompt.length} chars, Got: ${currentValue.length} chars`, 'warn');
+              }
+            } catch (insertError) {
+              log(`⚠️ Enhanced insertText attempt ${insertAttempt} failed:`, 'warn', insertError.message);
             }
-          } catch (insertError) {
-            log('⚠️ insertText failed:', 'warn', insertError.message);
           }
         }
       }
 
-      // Enhanced verification and debugging
+      // Comprehensive verification and debugging
+      await new Promise(resolve => setTimeout(resolve, 300)); // Allow time for all operations to complete
+      
       const currentValue = input.value || input.textContent || input.innerText || '';
       const promptLength = prompt.length;
       const currentLength = currentValue.length;
       const matchesStart = currentValue.startsWith(prompt.substring(0, Math.min(50, promptLength)));
       const matchesFull = currentValue === prompt;
+      const matchesSubstantial = currentValue.includes(prompt.substring(0, Math.min(100, promptLength))) && currentLength >= promptLength * 0.85;
       
-      log('🔍 Enhanced verification:', 'debug', {
+      log('🔍 Comprehensive verification:', 'debug', {
         'Expected length': promptLength,
         'Actual length': currentLength,
+        'Length ratio': (currentLength / promptLength).toFixed(2),
         'Matches start (50 chars)': matchesStart,
         'Matches full prompt': matchesFull,
-        'Expected prompt preview': prompt.substring(0, 100) + (prompt.length > 100 ? '...' : ''),
-        'Actual value preview': currentValue.substring(0, 100) + (currentValue.length > 100 ? '...' : '')
+        'Matches substantial content': matchesSubstantial,
+        'Expected prompt preview': prompt.substring(0, 150) + (prompt.length > 150 ? '...' : ''),
+        'Actual value preview': currentValue.substring(0, 150) + (currentValue.length > 150 ? '...' : ''),
+        'Prompt set successfully flag': promptSetSuccessfully
       });
       
-      log('🔍 Final verification - prompt set correctly:', matchesFull || (matchesStart && currentLength >= promptLength * 0.9));
+      // Additional detailed logging for debugging
+      if (!matchesFull) {
+        log('🔍 Detailed mismatch analysis:', 'debug', {
+          'Expected prompt': prompt,
+          'Actual value': currentValue,
+          'First difference at index': (() => {
+            for (let i = 0; i < Math.min(prompt.length, currentValue.length); i++) {
+              if (prompt[i] !== currentValue[i]) {
+                return i;
+              }
+            }
+            return -1;
+          })(),
+          'Missing characters': prompt.length - currentValue.length,
+          'Starts with expected': currentValue.startsWith(prompt.substring(0, 20)),
+          'Ends with expected': currentValue.endsWith(prompt.substring(prompt.length - 20))
+        });
+      }
       
-      if (!promptSetSuccessfully) {
-        log('❌ Failed to set prompt text properly', 'error');
-        return false;
+      // Final success determination with multiple criteria
+      const finalSuccess = matchesFull || (promptSetSuccessfully && matchesSubstantial);
+      log(`🔍 Final verification - prompt set correctly: ${finalSuccess}`, finalSuccess ? 'success' : 'error');
+      
+      if (!finalSuccess) {
+        log('❌ Failed to set prompt text properly - attempting one final recovery', 'error');
+        
+        // One final attempt using a different approach
+        try {
+          input.focus();
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Try setting via multiple simultaneous methods
+          if (input.value !== undefined) input.value = prompt;
+          if (input.textContent !== undefined) input.textContent = prompt;
+          if (input.innerText !== undefined) input.innerText = prompt;
+          
+          // Trigger all possible events
+          const allEvents = ['input', 'change', 'keyup', 'keydown', 'paste', 'textInput'];
+          allEvents.forEach(eventType => {
+            try {
+              const event = new Event(eventType, { bubbles: true, cancelable: true });
+              input.dispatchEvent(event);
+            } catch (e) {
+              // Ignore event creation errors
+            }
+          });
+          
+          await new Promise(resolve => setTimeout(resolve, 200));
+          const recoveryValue = input.value || input.textContent || input.innerText || '';
+          if (recoveryValue === prompt) {
+            log('✅ Recovery attempt successful', 'success');
+            promptSetSuccessfully = true;
+          } else {
+            log('❌ Recovery attempt failed', 'error', {
+              method: 'final recovery',
+              attemptedMethods: [
+                'Monaco setValue',
+                'Monaco executeEdits',
+                'Clipboard paste',
+                'Character-by-character typing',
+                'Contenteditable direct set',
+                'Textarea/input direct set',
+                'insertText with retry',
+                'final recovery (direct set and events)'
+              ],
+              reason: 'Prompt text did not match after all methods',
+              expected: prompt,
+              actual: recoveryValue,
+              lengthExpected: prompt.length,
+              lengthActual: recoveryValue.length
+            });
+            return false;
+          }
+        } catch (recoveryError) {
+          log('❌ Recovery attempt error:', 'error', {
+            method: 'final recovery',
+            attemptedMethods: [
+              'Monaco setValue',
+              'Monaco executeEdits',
+              'Clipboard paste',
+              'Character-by-character typing',
+              'Contenteditable direct set',
+              'Textarea/input direct set',
+              'insertText with retry',
+              'final recovery (direct set and events)'
+            ],
+            error: recoveryError.message
+          });
+          return false;
+        }
       }
 
       // Try to find and click send button
@@ -988,6 +1299,19 @@ function clickButton(selector) {
 
     try {
       const buttonText = (button.textContent || button.getAttribute('aria-label') || button.getAttribute('title') || '').trim();
+
+      // Exclude specific button patterns that should not be auto-clicked
+      const excludedPatterns = [
+        'go back',
+        'keep all edits'
+      ];
+      
+      const lowerButtonText = buttonText.toLowerCase();
+      const isExcluded = excludedPatterns.some(pattern => lowerButtonText.includes(pattern));
+      if (isExcluded) {
+        log(`🚫 Skipping excluded button by selector: "${buttonText}"`, 'debug');
+        return false;
+      }
 
       // Final validation before clicking
       const rect = button.getBoundingClientRect();
@@ -1191,11 +1515,18 @@ function checkForIdle() {
 // Action function: Send continuation prompt
 async function sendContinuationPrompt() {
   log('📝 Sending continuation prompt...', 'info');
+  log('📝 Full prompt to send:', 'debug', {
+    'Prompt': config.prompts.continuation,
+    'Length': config.prompts.continuation.length,
+    'Preview': config.prompts.continuation.substring(0, 100) + (config.prompts.continuation.length > 100 ? '...' : '')
+  });
   
   try {
-    return await sendPrompt();
+    const result = await sendPrompt();
+    log('📝 Continuation prompt sending result:', 'info', result);
+    return result;
   } catch (error) {
-    log('❌ Error in sendContinuationPrompt:', error);
+    log('❌ Error in sendContinuationPrompt:', 'error', error);
     return false;
   }
 }
@@ -1343,167 +1674,90 @@ function init() {
   }
 }
 
-// Initialize autoContinue object
-const autoContinue = {
-  start: init,
-  stop: function() {
-    let wasRunning = state.timerId !== null;
-
-    try {
-      let stoppedSomething = false;
-
-      if (state.timerId) {
-        clearInterval(state.timerId);
-        state.timerId = null;
-        stoppedSomething = true;
-      }
-
-      // Reset state
-      state.lastClick = Date.now();
-      state.isProcessing = false;
-      state.retryCount = 0;
-      state.isRunning = false;
-      // Reset task tracking state
-      state.taskHistory = [];
-      state.currentTaskStartTime = null;
-      state.shortTaskCount = 0; // Reset consecutive fast task counter
-
-      // Clear click markers
-      try {
-        const clickedButtons = document.querySelectorAll('[data-auto-continue-clicked="true"]');
-        clickedButtons.forEach(btn => btn.removeAttribute('data-auto-continue-clicked'));
-      } catch (e) {}
-
-      if (stoppedSomething) {
-        log('🛑 Automation stopped successfully', 'success');
-      }
-
+// Enhanced public API for debugging and control
+window.autoContinue = {
+  // Start the auto-continue process
+  start() {
+    log('🚀 Starting auto-continue via public API', 'info');
+    startAutoContinue();
+  },
+  
+  // Stop the auto-continue process
+  stop() {
+    log('🛑 Stopping auto-continue via public API', 'info');
+    stopAutoContinue();
+  },
+  
+  // Enable debug mode for detailed logging
+  enableDebug() {
+    state.debugMode = true;
+    log('🐛 Debug mode enabled', 'info');
+    log('📝 Current prompt configuration:', 'debug', {
+      'Prompt': config.prompts.continuation,
+      'Length': config.prompts.continuation.length,
+      'Full text': config.prompts.continuation
+    });
+  },
+  
+  // Disable debug mode
+  disableDebug() {
+    state.debugMode = false;
+    log('🐛 Debug mode disabled', 'info');
+  },
+  
+  // Get current state information
+  getStatus() {
+    return {
+      isRunning: state.isRunning,
+      debugMode: state.debugMode,
+      promptLength: config.prompts.continuation.length,
+      lastActivityTime: state.lastActivityTime,
+      shortTaskCount: state.shortTaskCount
+    };
+  },
+  
+  // Test prompt sending (for debugging)
+  async testPrompt() {
+    log('🧪 Testing prompt sending...', 'info');
+    const result = await sendContinuationPrompt();
+    log('🧪 Test prompt result:', 'info', result);
+    return result;
+  },
+  
+  // Get the current prompt text
+  getCurrentPrompt() {
+    return config.prompts.continuation;
+  },
+  
+  // Set a custom prompt (for testing)
+  setPrompt(newPrompt) {
+    if (typeof newPrompt === 'string' && newPrompt.trim().length > 0) {
+      config.prompts.continuation = newPrompt;
+      log('📝 Custom prompt set:', 'info', {
+        'New prompt': newPrompt,
+        'Length': newPrompt.length
+      });
       return true;
-    } catch (error) {
-      log('❌ Error stopping automation:', error);
+    } else {
+      log('❌ Invalid prompt provided', 'error');
       return false;
     }
+  },
+  
+  // Reset to default prompt
+  resetPrompt() {
+    config.prompts.continuation = "Continue executing the current task if it exists or do tasks on the dartboard iteratively until no uncompleted tasks left. Use build_run_rules, general, product_requirements_design instructions.md files.";
+    log('📝 Prompt reset to default', 'info');
   }
 };
 
-window.autoContinue = autoContinue;
+// Legacy support
+window.autoContinue.stop = window.autoContinue.stop;
 
-// Auto-start
-log('🔍 Checking for existing instances...', 'info');
-if (typeof window.autoContinue !== 'undefined' && window.autoContinue && typeof window.autoContinue.stop === 'function') {
-  log('⚠️  Stopping existing instance...', 'warn');
-  try {
-    window.autoContinue.stop();
-    log('✅ Previous instance stopped', 'success');
-  } catch (error) {
-    log('⚠️  Error stopping previous instance:', error);
-  }
-  setTimeout(() => {
-    init();
-  }, 500);
-} else {
-  init();
+// Initialize debug mode if needed
+if (typeof window.autoContinueDebug !== 'undefined' && window.autoContinueDebug) {
+  window.autoContinue.enableDebug();
 }
 
-// Helper function: Click button by text content (fallback method)
-function clickButtonByText(buttonName) {
-  try {
-    log(`🔍 Searching for '${buttonName}' button by text content...`, 'debug');
-    
-    const allButtons = Array.from(document.querySelectorAll(
-      'button, a[role="button"], .monaco-button, .action-label'
-    ));
-    
-    const textMatchButtons = allButtons.filter(btn => {
-      const text = (btn.textContent || btn.getAttribute('aria-label') || btn.getAttribute('title') || '')
-        .toLowerCase().trim();
-      return text.includes(buttonName.toLowerCase());
-    });
-
-    if (textMatchButtons.length === 0) {
-      log(`🔍 No buttons found with text matching '${buttonName}'`, 'debug');
-      return false;
-    }
-
-    const button = textMatchButtons.find(btn => {
-      try {
-        const rect = btn.getBoundingClientRect();
-        const style = window.getComputedStyle(btn);
-        const isVisible = rect.width > 0 && rect.height > 0 &&
-                         btn.offsetParent !== null &&
-                         style.display !== 'none' &&
-                         style.visibility !== 'hidden' &&
-                         style.opacity !== '0';
-
-        const isEnabled = !btn.disabled &&
-                         btn.getAttribute('aria-disabled') !== 'true' &&
-                         !btn.hasAttribute('disabled');
-
-        const alreadyClicked = btn.getAttribute('data-auto-continue-clicked') === 'true';
-
-        return isVisible && isEnabled && !alreadyClicked;
-      } catch (e) {
-        return false;
-      }
-    });
-
-    if (!button) {
-      log(`🔍 No clickable button found with text matching '${buttonName}'`, 'debug');
-      return false;
-    }
-
-    // Use the clickButton function with a custom selector approach
-    // Since we already have the element, we'll directly click it
-    const now = Date.now();
-    if (now - state.lastClick < config.intervals.buttonCooldown) {
-      log(`⏱️ Button cooldown active, skipping text-based click`, 'debug');
-      return false;
-    }
-
-    try {
-      const buttonText = (button.textContent || button.getAttribute('aria-label') || button.getAttribute('title') || '').trim();
-
-      // Final validation
-      const rect = button.getBoundingClientRect();
-      const isStillVisible = rect.width > 0 && rect.height > 0 && button.offsetParent !== null;
-      const isStillEnabled = !button.disabled && button.getAttribute('aria-disabled') !== 'true';
-
-      if (!isStillVisible || !isStillEnabled) {
-        log(`🚫 Text-matched button no longer clickable: ${buttonText}`, 'debug');
-        return false;
-      }
-
-      // Mark as clicked
-      button.setAttribute('data-auto-continue-clicked', 'true');
-      
-      // Scroll into view
-      button.scrollIntoView({ block: 'center', inline: 'center' });
-
-      // Create and dispatch click event
-      const clickEvent = new MouseEvent('click', {
-        bubbles: true,
-        cancelable: true,
-        view: window
-      });
-      clickEvent.autoContinueSource = true;
-
-      const clickResult = button.dispatchEvent(clickEvent);
-
-      if (clickResult) {
-        state.lastClick = now;
-        state.retryCount = 0;
-        log(`🎯 Successfully clicked '${buttonName}' button by text: "${buttonText}"`, 'success');
-        return true;
-      } else {
-        log(`❌ Text-based click event failed for: "${buttonText}"`, 'warn');
-        return false;
-      }
-    } catch (clickError) {
-      log(`❌ Error clicking text-matched '${buttonName}' button:`, 'error', clickError);
-      return false;
-    }
-  } catch (error) {
-    log(`❌ Critical error in clickButtonByText(${buttonName}):`, 'error', error);
-    return false;
-  }
-}
+log('✅ Auto-continue script loaded successfully', 'info');
+log('📝 Available commands: autoContinue.start(), autoContinue.stop(), autoContinue.enableDebug(), autoContinue.testPrompt()', 'info');
