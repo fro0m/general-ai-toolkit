@@ -37,13 +37,13 @@ A Python application that executes a sequence of keyboard tasks a specified numb
 To run the application:
 
 ```
-poetry run python auto-inserter/main.py
+poetry run auto-inserter
 ```
 
 To run it in the background:
 
 ```
-nohup poetry run python auto-inserter/main.py &
+nohup poetry run auto-inserter &
 ```
 
 ## Creating a systemd service
@@ -65,7 +65,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/env bash -c 'cd /path/to/auto-inserter && poetry run python auto-inserter/main.py'
+ExecStart=/usr/bin/env bash -c 'cd /path/to/auto-inserter && poetry run auto-inserter'
 Restart=always
 RestartSec=5
 Environment=DISPLAY=:0

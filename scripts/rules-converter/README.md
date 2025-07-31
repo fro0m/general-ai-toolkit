@@ -71,9 +71,10 @@ poetry run rules-converter path/to/directory -o path/to/output
 ```
 
 When converting a directory, the tool will:
-- Convert `.mdc` files to VS Code instruction files (`.instructions.md`) in `.github/instructions/`, Roo Code rules files (`.md`) in `.roo/rules/`, Windsurf rules files (`.md`) in `.windsurf/rules/`, and Cline rules files (`.md`) in `.clinerules/`
-- Copy all non-`.mdc` files from the source directory to the output directory (if output directory is specified), preserving the directory structure
-- Maintain the directory structure inside the `.github/instructions`, `.roo/rules`, `.windsurf/rules`, and `.clinerules` directories
+- Convert `.mdc` files to VS Code instruction files (`.instructions.md`) in `.github/instructions/`, Roo Code rules files (`.md`) in `.roo/rules/`, Windsurf rules files (`.md`) in `.windsurf/rules/`, and Cline rules files (`.md`) in `.clinerules/`.
+- For Gemini CLI, it will create a `.gemini/` directory in the project for individual rules and a `GEMINI.md` in `~/.gemini/` to import them.
+- Copy all non-`.mdc` files from the source directory to the output directory (if output directory is specified), preserving the directory structure.
+- Maintain the directory structure inside the `.github/instructions`, `.roo/rules`, `.windsurf/rules`, and `.clinerules` directories.
 
 ### Help
 

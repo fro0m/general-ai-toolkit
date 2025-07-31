@@ -51,16 +51,17 @@ def main(input_path, output_dir, recursive):
                 if not click.confirm("Continue anyway?"):
                     return
             
-            vscode_output_path, roo_output_path, windsurf_output_path, cline_output_path = convert_file(input_path, output_dir)
+            vscode_output_path, roo_output_path, windsurf_output_path, cline_output_path, gemini_cli_output_path = convert_file(input_path, output_dir)
             click.echo(f"Converted {input_path}:")
             click.echo(f"  - VS Code: {vscode_output_path}")
             click.echo(f"  - Roo Code: {roo_output_path}")
             click.echo(f"  - Windsurf: {windsurf_output_path}")
             click.echo(f"  - Cline: {cline_output_path}")
+            click.echo(f"  - Gemini CLI: {gemini_cli_output_path}")
         
         elif os.path.isdir(input_path):
             if recursive:
-                vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, copied_files = convert_directory(input_path, output_dir)
+                vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, gemini_cli_converted_files, copied_files = convert_directory(input_path, output_dir)
                 total_processed = len(vscode_converted_files) + len(copied_files)
                 
                 click.echo(f"Processed {total_processed} files from {input_path}")
@@ -69,9 +70,10 @@ def main(input_path, output_dir, recursive):
                 click.echo(f"  - Roo Code rules: {len(roo_converted_files)} files")
                 click.echo(f"  - Windsurf rules: {len(windsurf_converted_files)} files")
                 click.echo(f"  - Cline rules: {len(cline_converted_files)} files")
+                click.echo(f"  - Gemini CLI rules: {len(gemini_cli_converted_files)} files")
                 click.echo(f"- Copied {len(copied_files)} other files")
                 
-                if vscode_converted_files or roo_converted_files or windsurf_converted_files or cline_converted_files:
+                if vscode_converted_files or roo_converted_files or windsurf_converted_files or cline_converted_files or gemini_cli_converted_files:
                     click.echo("\nGenerated files:")
                     for file in vscode_converted_files:
                         click.echo(f"  - VS Code: {file}")
@@ -81,6 +83,8 @@ def main(input_path, output_dir, recursive):
                         click.echo(f"  - Windsurf: {file}")
                     for file in cline_converted_files:
                         click.echo(f"  - Cline: {file}")
+                    for file in gemini_cli_converted_files:
+                        click.echo(f"  - Gemini CLI: {file}")
                     for file in copied_files:
                         click.echo(f"  - Copied: {file}")
                 else:

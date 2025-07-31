@@ -6,7 +6,7 @@ authors = [
     "Developer <dev@example.com>"
 ]
 readme = "README.md"
-packages = [{include = "rules_converter"}]
+packages = [{include = "rules_converter", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.8"

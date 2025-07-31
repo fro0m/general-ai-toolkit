@@ -35,12 +35,14 @@
     *   Convert `.mdc` files to Roo Code rules files (`.md`).
     *   Convert `.mdc` files to Windsurf rules files (`.md` with YAML frontmatter).
     *   Convert `.mdc` files to Cline rules files (`.md`).
+    *   Convert `.mdc` files to Gemini CLI rules files (`.md`).
     *   Process a single `.mdc` file.
     *   Process all `.mdc` files in a directory and its subdirectories.
     *   Copy non-`.mdc` files to a specified output directory.
     *   Place converted files in the standard directory structure for each tool (`.github/instructions/`, `.roo/rules/`, `.windsurf/rules/`, `.clinerules/`).
+    *   For Gemini CLI, create a `.gemini/` directory in the project and a `GEMINI.md` file in `~/.gemini/` that imports the rules.
 *   **Prioritization (MoSCoW)**:
-    *   **Must-have**: Conversion to all four formats, single file conversion, directory conversion.
+    *   **Must-have**: Conversion to all five formats, single file conversion, directory conversion.
     *   **Should-have**: Correct output directory structure, copying of non-`.mdc` files.
     *   **Could-have**: Additional output formats in the future.
     *   **Won't-have**: A graphical user interface (GUI).

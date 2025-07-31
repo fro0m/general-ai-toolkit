@@ -413,16 +413,45 @@ def save_roo_instructions(instructions_content: str, output_path: str) -> None:
         f.write(instructions_content)
 
 
-def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> Tuple[str, str, str, str]:
+def convert_to_gemini_cli_instructions(mdc_content: str) -> str:
     """
-    Convert a single MDC file to VS Code instructions format, Roo Code format, Windsurf format, and Cline format.
+    Convert MDC content to Gemini CLI instructions format.
+    Gemini CLI instructions are plain text/markdown files without frontmatter.
+    
+    Args:
+        mdc_content: Content from the MDC file
+        
+    Returns:
+        Content formatted for Gemini CLI instruction files
+    """
+    return convert_to_roo_instructions(mdc_content)
+
+
+def save_gemini_cli_instructions(instructions_content: str, output_path: str) -> None:
+    """
+    Save Gemini CLI instructions to a file.
+    
+    Args:
+        instructions_content: Content for the instructions file
+        output_path: Path to save the instructions file
+    """
+    # Create parent directories if they don't exist
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(instructions_content)
+
+
+def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> Tuple[str, str, str, str, str]:
+    """
+    Convert a single MDC file to VS Code instructions format, Roo Code format, Windsurf format, Cline format, and Gemini CLI format.
     
     Args:
         input_path_str: Path to the input MDC file
         output_dir_str: Directory to save the output file (optional)
         
     Returns:
-        Tuple of (VS Code instructions file path, Roo Code instructions file path, Windsurf instructions file path, Cline instructions file path)
+        Tuple of (VS Code instructions file path, Roo Code instructions file path, Windsurf instructions file path, Cline instructions file path, Gemini CLI instructions file path)
     """
     input_path_abs = os.path.abspath(input_path_str)
     input_file_name = os.path.basename(input_path_abs)
@@ -434,6 +463,7 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         roo_instructions_content = convert_to_roo_instructions(mdc_content)
         windsurf_instructions_content = convert_to_windsurf_instructions(mdc_content)
         cline_instructions_content = convert_to_cline_instructions(mdc_content)
+        gemini_cli_instructions_content = convert_to_gemini_cli_instructions(mdc_content)
         
         base_for_output: str
         if output_dir_str:
@@ -477,8 +507,19 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         cline_output_filename = os.path.splitext(input_file_name)[0] + ".md"
         cline_output_path = os.path.join(cline_rules_dir, cline_output_filename)
         save_cline_instructions(cline_instructions_content, cline_output_path)
+
+        # Gemini CLI output structure
+        gemini_rules_dir = os.path.join(base_for_output, ".gemini")
+        gemini_master_file_path = os.path.join(gemini_rules_dir, "GEMINI.md")
+        gemini_cli_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        gemini_cli_output_path = os.path.join(gemini_rules_dir, gemini_cli_output_filename)
+        save_gemini_cli_instructions(gemini_cli_instructions_content, gemini_cli_output_path)
         
-        return vscode_output_path, roo_output_path, windsurf_output_path, cline_output_path
+        relative_path_for_import = os.path.relpath(gemini_cli_output_path, gemini_rules_dir)
+        with open(gemini_master_file_path, 'w', encoding='utf-8') as f:
+            f.write(f"# Gemini CLI Rules\n\n@{relative_path_for_import}\n")
+
+        return vscode_output_path, roo_output_path, windsurf_output_path, cline_output_path, gemini_master_file_path
     except Exception as e:
         print(f"Error converting {input_path_abs}: {str(e)}")
         raise
@@ -512,7 +553,7 @@ def copy_file(input_path: str, output_dir: str) -> str:
     return output_path
 
 
-def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) -> Tuple[List[str], List[str], List[str], List[str], List[str]]:
+def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) -> Tuple[List[str], List[str], List[str], List[str], List[str], List[str]]:
     """
     Convert all MDC files in a directory and its subdirectories.
     If the input directory is not .cursor/rules, it will specifically look for .cursor/rules within it.
@@ -524,13 +565,14 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
         output_dir_str: Directory to save output files (optional).
         
     Returns:
-        Tuple containing (list of VS Code converted file paths, list of Roo Code converted file paths, list of Windsurf converted file paths, list of Cline converted file paths, list of copied file paths)
+        Tuple containing (list of VS Code converted file paths, list of Roo Code converted file paths, list of Windsurf converted file paths, list of Cline converted file paths, list of Gemini CLI converted file paths, list of copied file paths)
     """
     input_dir_abs = os.path.abspath(input_dir_str)
     vscode_converted_files = []
     roo_converted_files = []
     windsurf_converted_files = []
     cline_converted_files = []
+    gemini_cli_converted_files = []
     copied_files = []
 
     actual_mdc_search_root: str
@@ -548,7 +590,7 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
 
     if not os.path.isdir(actual_mdc_search_root):
         print(f"Info: MDC rule directory not found at {actual_mdc_search_root}. No .mdc files will be converted from this path.")
-        return [], [], [], [], []
+        return [], [], [], [], [], []
 
     base_for_output: str
     if output_dir_str:
@@ -556,6 +598,9 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
     else:
         base_for_output = project_root_for_no_output_dir
     
+    gemini_master_file_path = os.path.join(os.path.expanduser("~"), ".gemini", "GEMINI.md")
+    gemini_master_file_content = ["# Gemini CLI Rules\n\n"]
+
     for root, _, files in os.walk(actual_mdc_search_root):
         for file in files:
             input_path_abs = os.path.join(root, file)
@@ -571,6 +616,7 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 roo_instructions_content = convert_to_roo_instructions(mdc_content)
                 windsurf_instructions_content = convert_to_windsurf_instructions(mdc_content)
                 cline_instructions_content = convert_to_cline_instructions(mdc_content)
+                gemini_cli_instructions_content = convert_to_gemini_cli_instructions(mdc_content)
                 
                 # Determine output paths
                 # VS Code: base_for_output / .github / instructions / rel_path_from_search_root / filename.instructions.md
@@ -600,7 +646,18 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 cline_output_path = os.path.join(cline_output_rules_subdir, cline_output_filename)
                 save_cline_instructions(cline_instructions_content, cline_output_path)
                 cline_converted_files.append(cline_output_path)
-            
+
+                # Gemini CLI: base_for_output / .gemini / rel_path_from_search_root / filename.md
+                gemini_cli_output_rules_subdir = os.path.join(base_for_output, ".gemini", rel_path_from_search_root)
+                gemini_cli_output_filename = os.path.splitext(os.path.basename(input_path_abs))[0] + ".md"
+                gemini_cli_output_path = os.path.join(gemini_cli_output_rules_subdir, gemini_cli_output_filename)
+                save_gemini_cli_instructions(gemini_cli_instructions_content, gemini_cli_output_path)
+                gemini_cli_converted_files.append(gemini_cli_output_path)
+                
+                # Add import statement to master file
+                relative_path_for_import = os.path.relpath(gemini_cli_output_path, gemini_rules_dir)
+                gemini_master_file_content.append(f"@{relative_path_for_import}\n")
+
             elif output_dir_str: # Only copy non-MDC files if an output_dir_str is specified
                 # Non-MDC files are copied relative to output_dir_str, maintaining structure from actual_mdc_search_root
                 # output_dir_str / rel_path_from_search_root / file
@@ -608,5 +665,9 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 # Note: copy_file expects output_dir to be the direct parent for the file, not a base output dir
                 output_path = copy_file(input_path_abs, file_output_dir_specific)
                 copied_files.append(output_path)
-    
-    return vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, copied_files
+
+    with open(gemini_master_file_path, 'w', encoding='utf-8') as f:
+        f.write("".join(gemini_master_file_content))
+    gemini_cli_converted_files.append(gemini_master_file_path)
+
+    return vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, gemini_cli_converted_files, copied_files
