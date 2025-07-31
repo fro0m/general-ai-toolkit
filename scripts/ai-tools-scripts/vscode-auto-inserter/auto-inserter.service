@@ -1,0 +1,13 @@
+[Unit]
+Description=Auto Inserter Keyboard Automation
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env bash -c 'cd /home/dev/dev/prj/auto-inserter && poetry run python auto-inserter/main.py'
+Restart=always
+RestartSec=5
+Environment=DISPLAY=:0
+
+[Install]
+WantedBy=default.target
