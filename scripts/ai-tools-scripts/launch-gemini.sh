@@ -33,5 +33,6 @@ KEY="${API_KEYS[$RANDOM_INDEX]}"
 # Export the environment variable so child processes can see it
 #export GEMINI_API_KEY="$KEY"
 
+echo "The GEMINI_API_KEY="$KEY""
 # Run the gemini CLI without specifying the key on the command line
 GEMINI_API_KEY="$KEY" gemini -y --proxy="http://127.0.0.1:2080" "$@"

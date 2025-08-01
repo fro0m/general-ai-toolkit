@@ -6,10 +6,11 @@ Comprehensive C++ Static Analysis Tool
 This script runs multiple C++ static analysis tools in parallel subprocesses and generates
 a consolidated report with all issues found. It integrates:
 - Clang Static Analyzer
-- clangd (based on clangd_report_generator.py)
+- clangd
 - cppcheck
 - IKOS (Inferencing Kernel for Open Static Analysis)
 - Flawfinder
+- xunused
 
 Example Usage:
 1. Basic usage. Analyzes the project in `/path/to/src` and assumes `compile_commands.json` is in the same directory.
@@ -30,6 +31,11 @@ Requirements:
 - cppcheck installed and in PATH
 - IKOS installed and in PATH (optional)
 - Flawfinder installed and in PATH
+- xunused installed and in PATH. To install, you can run the following commands:
+  - sudo apt install llvm-18-dev libclang-18-dev
+  - git clone https://github.com/mgehre/xunused.git
+  - cd xunused && mkdir build && cd build
+  - cmake .. && make
 - compile_commands.json in the specified compile_commands_dir
 - project_root must be a valid directory
 
@@ -71,7 +77,7 @@ class AnalysisResult:
 class CppAnalyzer:
     """Main C++ static analysis coordinator."""
     
-    def __init__(self, compile_commands_dir: str, project_root: str, parallel_jobs: int = 2):
+    def __init__(self, compile_commands_dir: str, project_root: str, parallel_jobs: int = os.cpu_count() or 2):
         self.compile_commands_dir = compile_commands_dir
         self.project_root = project_root
         self.parallel_jobs = parallel_jobs
@@ -89,7 +95,8 @@ class CppAnalyzer:
             'clang-static-analyzer': ['clang', '--analyze', '--help'],
             'cppcheck': ['cppcheck', '--version'],
             'ikos': ['ikos', '--version'],
-            'flawfinder': ['flawfinder', '--version']
+            'flawfinder': ['flawfinder', '--version'],
+            'xunused': ['xunused', '--version']
         }
         
         available = {}
@@ -100,10 +107,10 @@ class CppAnalyzer:
                 if available[tool]:
                     logging.info(f"✓ {tool} is available")
                 else:
-                    logging.warning(f"✗ {tool} not working properly")
+                    logging.error(f"✗ {tool} not working properly. Skipping.")
             except (subprocess.TimeoutExpired, FileNotFoundError):
                 available[tool] = False
-                logging.warning(f"✗ {tool} not found in PATH")
+                logging.error(f"✗ {tool} not found in PATH. Skipping.")
                 
         return available
 
@@ -233,6 +240,26 @@ class CppAnalyzer:
         except Exception as e:
             return AnalysisResult('flawfinder', file_path, '', str(e))
 
+    def run_xunused_check(self, file_path: str) -> AnalysisResult:
+        """Run xunused on a single file."""
+        if not self.available_tools.get('xunused', False):
+            return AnalysisResult('xunused', file_path, '', 'xunused not available')
+            
+        try:
+            result = subprocess.run(
+                ["xunused", file_path],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+            output = result.stdout + result.stderr
+            return AnalysisResult('xunused', file_path, output)
+        except subprocess.TimeoutExpired:
+            return AnalysisResult('xunused', file_path, '', 'Timeout expired')
+        except Exception as e:
+            return AnalysisResult('xunused', file_path, '', str(e))
+
     def analyze_file(self, file_path: str) -> List[AnalysisResult]:
         """Run all available analysis tools on a single file."""
         file_results = []
@@ -244,7 +271,8 @@ class CppAnalyzer:
             self.run_clang_static_analyzer,
             self.run_cppcheck,
             self.run_ikos,
-            self.run_flawfinder
+            self.run_flawfinder,
+            self.run_xunused_check
         ]
         
         for analyzer in analyzers:
@@ -428,10 +456,11 @@ def main():
 Tools included:
 - clangd: Language server diagnostics
 - clang-tidy: Clang-based linter
-- clang-static-analyzer: Static analysis
+- Clang Static Analyzer: Static analysis
 - cppcheck: Static analysis tool
 - IKOS: Inferencing Kernel for Open Static Analysis
 - Flawfinder: Security-focused static analysis
+- xunused: Finds unused code
 
 Example usage:
   ./cpp_analyze.py [options] /path/to/src [/path/to/build]
@@ -444,7 +473,8 @@ Positional Arguments:
 Optional Arguments:
   -h, --help                Show this help message and exit.
   -o, --output FILE         Output file for the consolidated report.
-  -j, --parallel N          Number of parallel analysis jobs.
+  -j, --parallel N          Number of parallel analysis jobs (default: all available
+                            cores).
   -v, --verbose             Enable verbose logging.
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -465,11 +495,12 @@ Optional Arguments:
         default="cpp_analysis_report.txt",
         help="Output file for the consolidated report (default: cpp_analysis_report.txt)"
     )
+    default_jobs = os.cpu_count() or 2
     parser.add_argument(
         "--parallel", "-j",
         type=int,
-        default=2,
-        help="Number of parallel analysis jobs (default: 2)"
+        default=default_jobs,
+        help=f"Number of parallel analysis jobs (default: {default_jobs})"
     )
     parser.add_argument(
         "--verbose", "-v",

@@ -34,7 +34,7 @@ Run the script using `poetry run`, which ensures it executes within the correct 
 ### Command-Line Arguments
 
 ```bash
-poetry run python3 comparator.py <source_directory> <usage_directory> [options]
+poetry run python3 cpp-usage-comparator.py <source_directory> <usage_directory> [options]
 ```
 
 -   `source_directory`: The path to the directory containing the primary source code.
@@ -60,7 +60,7 @@ This will create a `compile_commands.json` file in the build directory.
 To find symbols defined in `/path/to/my_project/src` that are only used in `/path/to/my_project/tests`, assuming your `compile_commands.json` is in `/path/to/my_project/build`:
 
 ```bash
-poetry run python3 comparator.py \
+poetry run python3 cpp-usage-comparator.py \
   /path/to/my_project/src \
   /path/to/my_project/tests \
   --compile-db /path/to/my_project/build
@@ -68,7 +68,7 @@ poetry run python3 comparator.py \
 
 To debug why a specific symbol isn't appearing in the report, run the same command with the `--verbose` flag:
 ```bash
-poetry run python3 comparator.py \
+poetry run python3 cpp-usage-comparator.py \
   /path/to/my_project/src \
   /path/to/my_project/tests \
   --compile-db /path/to/my_project/build \
@@ -85,7 +85,7 @@ The script's `libclang` dependency relies on the underlying Clang library (`libc
     -   On Linux: `find /usr -name "libclang.so.*"`
     -   On macOS: `find /usr/local/opt/llvm -name "libclang.dylib"`
 
-2.  **Edit the `comparator.py` script**:
+2.  **Edit the `cpp-usage-comparator.py` script**:
     At the bottom of the file, uncomment and update the `Config.set_library_file` line with the correct path:
     ```python
     # In the if __name__ == "__main__": block
