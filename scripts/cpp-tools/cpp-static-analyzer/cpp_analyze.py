@@ -11,19 +11,20 @@ a consolidated report with all issues found. It integrates:
 - IKOS (Inferencing Kernel for Open Static Analysis)
 - Flawfinder
 - xunused
+- scan-build
 
 Example Usage:
-1. Basic usage. Analyzes the project in `/path/to/src` and assumes `compile_commands.json` is in the same directory.
-   ./cpp_analyze.py /path/to/src
+   ./cpp_analyze.py /path/to/build /path/to/src
 
-2. Specify a custom output file for the report.
-   ./cpp_analyze.py /path/to/src --output cpp_analysis_report.txt
+This command analyzes the source files in `/path/to/src` using the compilation
+database found in `/path/to/build/compile_commands.json`.
 
-3. Enable parallel analysis with 4 jobs.
-   ./cpp_analyze.py /path/to/src --parallel 4
+Additional options:
+- To specify a custom output file for the report:
+  ./cpp_analyze.py /path/to/build /path/to/src --output cpp_analysis_report.txt
 
-4. Specify a separate build directory for `compile_commands.json`.
-    ./cpp_analyze.py /path/to/src /path/to/build
+- To enable parallel analysis with 4 jobs:
+  ./cpp_analyze.py /path/to/build /path/to/src --parallel 4
 
 Requirements:
 - Python 3.x
@@ -36,14 +37,15 @@ Requirements:
   - git clone https://github.com/mgehre/xunused.git
   - cd xunused && mkdir build && cd build
   - cmake .. && make
-- compile_commands.json in the specified compile_commands_dir
-- project_root must be a valid directory
+- scan-build installed and in PATH.
+- A `compile_commands.json` file in the build directory.
+- The source directory must be a valid directory.
 
 Notes:
-- Only files within project_root or its subdirectories are analyzed
-- Tools run in parallel subprocesses for better performance
-- Results are consolidated into a single comprehensive report
-- Detailed logs are printed to console
+- Only files within the source directory or its subdirectories are analyzed.
+- Tools run in parallel subprocesses for better performance.
+- Results are consolidated into a single comprehensive report.
+- Detailed logs are printed to console.
 """
 
 import argparse
@@ -79,8 +81,8 @@ class CppAnalyzer:
     """Main C++ static analysis coordinator."""
     
     def __init__(self, compile_commands_dir: str, project_root: str, parallel_jobs: Optional[int] = None):
-        self.compile_commands_dir = compile_commands_dir
         self.project_root = project_root
+        self.compile_commands_dir = compile_commands_dir
         self.results_lock = threading.Lock()
         self.all_results: List[AnalysisResult] = []
         
@@ -88,14 +90,35 @@ class CppAnalyzer:
         self.available_tools = self._check_tool_availability()
         
         if parallel_jobs is None:
-            num_available_tools = sum(1 for available in self.available_tools.values() if available)
-            cpu_count = os.cpu_count() or 1
-            self.parallel_jobs = min(num_available_tools, cpu_count)
+            self.parallel_jobs = os.cpu_count() or 1
             logging.info(f"Using default parallel jobs: {self.parallel_jobs}")
         else:
             self.parallel_jobs = parallel_jobs
-        
+
+        self.multi_threaded_tools = {'clangd', 'cppcheck', 'ikos', 'xunused'}
+        self.single_threaded_tools = {'clang-static-analyzer', 'flawfinder', 'scan-build'}
+
         self.compile_commands = self._load_compile_commands()
+        self._calculate_thread_distribution()
+
+    def _calculate_thread_distribution(self):
+        """Calculate thread distribution based on available tools and CPU cores."""
+        available_multi_threaded = [t for t in self.multi_threaded_tools if self.available_tools.get(t)]
+        available_single_threaded = [t for t in self.single_threaded_tools if self.available_tools.get(t)]
+
+        num_multi = len(available_multi_threaded)
+        num_single = len(available_single_threaded)
+        
+        if num_multi > 0:
+            self.single_tool_threads = (self.parallel_jobs - num_single) // num_multi
+            if self.single_tool_threads < 1:
+                self.single_tool_threads = 1
+        else:
+            self.single_tool_threads = 1 # No multi-threaded tools available
+
+        logging.info(f"Total parallel jobs: {self.parallel_jobs}")
+        logging.info(f"Threads per multi-threaded tool: {self.single_tool_threads}")
+
 
     def _load_compile_commands(self) -> Dict[str, Dict]:
         """Load and cache compile_commands.json."""
@@ -142,7 +165,30 @@ class CppAnalyzer:
                 continue
             if for_xunused and arg == '-fno-pch':
                 continue
-            filtered_args.append(arg)
+            
+            # Make paths absolute
+            if arg == '-I' or arg == '-isystem':
+                if i + 1 < len(args):
+                    path = args[i+1]
+                    if not os.path.isabs(path):
+                        path = os.path.abspath(os.path.join(entry.get("directory", "."), path))
+                    filtered_args.append(arg)
+                    filtered_args.append(path)
+                    skip_next = True
+                else:
+                    filtered_args.append(arg)
+            elif arg.startswith('-I'):
+                path = arg[2:]
+                if not os.path.isabs(path):
+                    path = os.path.abspath(os.path.join(entry.get("directory", "."), path))
+                filtered_args.append('-I' + path)
+            elif arg.startswith('-isystem'):
+                path = arg[len('-isystem'):].lstrip()
+                if not os.path.isabs(path):
+                    path = os.path.abspath(os.path.join(entry.get("directory", "."), path))
+                filtered_args.append('-isystem' + path)
+            else:
+                filtered_args.append(arg)
         
         if for_xunused:
             filtered_args.append("-fno-pch")
@@ -157,7 +203,8 @@ class CppAnalyzer:
             'cppcheck': ['cppcheck', '--version'],
             'ikos': ['ikos', '--version'],
             'flawfinder': ['flawfinder', '--version'],
-            'xunused': ['xunused', '--version']
+            'xunused': ['xunused', '--version'],
+            'scan-build': ['scan-build', '--help']
         }
         
         available = {}
@@ -175,17 +222,17 @@ class CppAnalyzer:
                 
         return available
 
-    def run_clangd_check(self, file_path: str) -> AnalysisResult:
+    def run_clangd_check_on_file(self, file_path: str) -> AnalysisResult:
         """Run clangd --check on a single file."""
         if not self.available_tools.get('clangd', False):
             return AnalysisResult('clangd', file_path, '', 'clangd not available')
-            
+        
         try:
             result = subprocess.run(
-                ["clangd", f"--compile-commands-dir={self.compile_commands_dir}", "--clang-tidy", f"--check={file_path}"],
+                ["clangd", f"--compile-commands-dir={self.compile_commands_dir}", "--clang-tidy", f"--check={file_path}", f"-j={self.single_tool_threads}"],
                 capture_output=True,
                 text=True,
-                timeout=120, # Increased timeout for clang-tidy checks
+                timeout=120,
                 check=False,
             )
             output = result.stdout + result.stderr
@@ -195,16 +242,14 @@ class CppAnalyzer:
         except Exception as e:
             return AnalysisResult('clangd', file_path, '', str(e))
 
-    def run_clang_static_analyzer(self, file_path: str) -> AnalysisResult:
+    def run_clang_static_analyzer_on_file(self, file_path: str) -> AnalysisResult:
         """Run Clang Static Analyzer on a single file."""
         if not self.available_tools.get('clang-static-analyzer', False):
             return AnalysisResult('clang-static-analyzer', file_path, '', 'clang static analyzer not available')
-            
+        
         try:
-            # Create temporary directory for analysis output
             temp_dir = Path("/tmp/clang_analysis")
             temp_dir.mkdir(exist_ok=True)
-            
             compile_args = self._get_compile_args(file_path)
             
             result = subprocess.run(
@@ -228,14 +273,36 @@ class CppAnalyzer:
             return AnalysisResult('cppcheck', self.project_root, '', 'cppcheck not available')
             
         try:
-            compile_db_path = Path(self.compile_commands_dir) / 'compile_commands.json'
+            original_compile_db_path = Path(self.compile_commands_dir) / 'compile_commands.json'
+            
+            # Filter compile_commands.json to include only existing files
+            with open(original_compile_db_path, "r") as f:
+                commands = json.load(f)
+            
+            existing_files_commands = []
+            for cmd in commands:
+                file_path = Path(cmd['file'])
+                if not file_path.is_absolute():
+                    file_path = Path(cmd['directory']) / file_path
+                
+                if file_path.exists():
+                    existing_files_commands.append(cmd)
+            
+            temp_compile_db_path = Path(self.compile_commands_dir) / 'compile_commands.cppcheck.json'
+            with open(temp_compile_db_path, "w") as f:
+                json.dump(existing_files_commands, f)
+
             result = subprocess.run(
-                ["cppcheck", f"--project={compile_db_path}", "--enable=all", "--inconclusive", "--xml", f"-j{self.parallel_jobs}", self.project_root],
+                ["cppcheck", f"--project={temp_compile_db_path}", "--enable=all", "--inconclusive", "--xml"],
                 capture_output=True,
                 text=True,
-                timeout=600, # Increased timeout for whole project analysis
+                timeout=600,
                 check=False,
             )
+            
+            # Clean up the temporary file
+            os.remove(temp_compile_db_path)
+
             output = result.stdout + result.stderr
             return AnalysisResult('cppcheck', self.project_root, output)
         except subprocess.TimeoutExpired:
@@ -243,17 +310,15 @@ class CppAnalyzer:
         except Exception as e:
             return AnalysisResult('cppcheck', self.project_root, '', str(e))
 
-    def run_ikos(self, file_path: str) -> AnalysisResult:
+    def run_ikos_on_file(self, file_path: str) -> AnalysisResult:
         """Run IKOS static analyzer on a single file."""
         if not self.available_tools.get('ikos', False):
             return AnalysisResult('ikos', file_path, '', 'IKOS not available')
-            
+        
         try:
             compile_args = self._get_compile_args(file_path)
-            # Filter args for ikos to avoid conflicts with its own options
-            ikos_args = [arg for arg in compile_args if arg.startswith(('-I', '-D', '-W', '-w', '-m'))]
             result = subprocess.run(
-                ["ikos", file_path] + ikos_args,
+                ["ikos", file_path] + compile_args + [f"--jobs={self.single_tool_threads}"],
                 capture_output=True,
                 text=True,
                 timeout=180,
@@ -266,11 +331,11 @@ class CppAnalyzer:
         except Exception as e:
             return AnalysisResult('ikos', file_path, '', str(e))
 
-    def run_flawfinder(self, file_path: str) -> AnalysisResult:
+    def run_flawfinder_on_file(self, file_path: str) -> AnalysisResult:
         """Run Flawfinder on a single file."""
         if not self.available_tools.get('flawfinder', False):
             return AnalysisResult('flawfinder', file_path, '', 'Flawfinder not available')
-            
+        
         try:
             result = subprocess.run(
                 ["flawfinder", "--columns", "--context", file_path],
@@ -292,14 +357,12 @@ class CppAnalyzer:
             return AnalysisResult('xunused', self.project_root, '', 'xunused not available')
             
         try:
-            # Get compile args for the first file and add -fno-pch
-            compile_args = self._get_compile_args(source_files[0], for_xunused=True) if source_files else []
-            
+            # Let xunused discover files from the compilation database
             result = subprocess.run(
-                ["xunused", "-p", self.compile_commands_dir, f"--threads={self.parallel_jobs}"] + compile_args + source_files,
+                ["xunused", "-p", self.compile_commands_dir, f"--threads={self.single_tool_threads}"],
                 capture_output=True,
                 text=True,
-                timeout=600, # Increased timeout for whole project analysis
+                timeout=600,
                 check=False,
             )
             output = result.stdout + result.stderr
@@ -309,33 +372,37 @@ class CppAnalyzer:
         except Exception as e:
             return AnalysisResult('xunused', self.project_root, '', str(e))
 
-    def analyze_file(self, file_path: str) -> List[AnalysisResult]:
-        """Run all available analysis tools on a single file."""
-        file_results = []
-        
-        # Run each tool
-        analyzers = [
-            self.run_clangd_check,
-            self.run_clang_static_analyzer,
-            self.run_ikos,
-            self.run_flawfinder
-        ]
-        
-        for analyzer in analyzers:
-            try:
-                result = analyzer(file_path)
-                file_results.append(result)
-                
-                if result.has_issues:
-                    logging.info(f"  {result.tool_name}: Found issues in {file_path}")
-                else:
-                    logging.debug(f"  {result.tool_name}: No issues in {file_path}")
-                    
-            except Exception as e:
-                logging.error(f"  {analyzer.__name__} failed for {file_path}: {e}")
-                file_results.append(AnalysisResult(analyzer.__name__, file_path, '', str(e)))
-        
-        return file_results
+    def run_scan_build_on_project(self) -> AnalysisResult:
+        """Run scan-build on the entire project."""
+        if not self.available_tools.get('scan-build', False):
+            return AnalysisResult('scan-build', self.project_root, '', 'scan-build not available')
+            
+        try:
+            makefile_content = f"""
+CXXFLAGS += -I{self.project_root}
+SOURCES = {" ".join(self.get_source_files())}
+all:
+	@echo "Fake build for scan-build"
+"""
+            makefile_path = Path(self.project_root) / "Makefile.scan-build"
+            with open(makefile_path, "w") as f:
+                f.write(makefile_content)
+
+            result = subprocess.run(
+                ["scan-build", "-o", "/tmp/scan-build-report", "make", "-f", str(makefile_path)],
+                capture_output=True,
+                text=True,
+                timeout=600,
+                check=False,
+                cwd=self.project_root
+            )
+            output = result.stdout + result.stderr
+            os.remove(makefile_path)
+            return AnalysisResult('scan-build', self.project_root, output)
+        except subprocess.TimeoutExpired:
+            return AnalysisResult('scan-build', self.project_root, '', 'Timeout expired')
+        except Exception as e:
+            return AnalysisResult('scan-build', self.project_root, '', str(e))
 
     def is_file_in_project_root(self, file_path: str) -> bool:
         """Check if file_path is within project_root or its subdirectories."""
@@ -349,8 +416,6 @@ class CppAnalyzer:
 
     def get_source_files(self) -> List[str]:
         """Get list of C++ source files from compile_commands.json."""
-        
-        # Filter files to only those in project_root and are C++ files
         cpp_extensions = {'.cpp', '.cxx', '.cc', '.c++', '.C', '.c', '.h', '.hpp', '.hxx', '.h++'}
         
         filtered_files = []
@@ -372,36 +437,51 @@ class CppAnalyzer:
         logging.info(f"Starting comprehensive C++ analysis")
         logging.info(f"Output report will be saved to: {output_file_path}")
         
-        # Get source files
         source_files = self.get_source_files()
         if not source_files:
             logging.warning("No C++ source files found to analyze")
             return str(output_file_path)
 
-        # Analyze files in parallel (except for project-wide tools)
         all_results = []
+        
+        # Define per-file and project-wide tools
+        per_file_tools = {
+            'clangd': self.run_clangd_check_on_file,
+            'clang-static-analyzer': self.run_clang_static_analyzer_on_file,
+            'ikos': self.run_ikos_on_file,
+            'flawfinder': self.run_flawfinder_on_file
+        }
+        
+        project_tools = {
+            'cppcheck': self.run_cppcheck_on_project,
+            'xunused': lambda: self.run_xunused_on_project(source_files),
+            'scan-build': self.run_scan_build_on_project
+        }
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.parallel_jobs) as executor:
-            future_to_file = {
-                executor.submit(self.analyze_file, file_path): file_path 
-                for file_path in source_files
-            }
-            
-            for i, future in enumerate(concurrent.futures.as_completed(future_to_file), 1):
-                file_path = future_to_file[future]
+            futures = []
+
+            # Submit project-wide tasks
+            for name, tool_func in project_tools.items():
+                if self.available_tools.get(name):
+                    futures.append(executor.submit(tool_func))
+
+            # Submit per-file tasks
+            for name, tool_func in per_file_tools.items():
+                if self.available_tools.get(name):
+                    for source_file in source_files:
+                        futures.append(executor.submit(tool_func, source_file))
+
+            for future in concurrent.futures.as_completed(futures):
                 try:
-                    file_results = future.result()
-                    all_results.extend(file_results)
-                    logging.info(f"Completed analysis {i}/{len(source_files)}: {file_path}")
+                    result = future.result()
+                    if isinstance(result, list):
+                        all_results.extend(result)
+                    else:
+                        all_results.append(result)
                 except Exception as e:
-                    logging.error(f"Analysis failed for {file_path}: {e}")
+                    logging.error(f"Analysis task failed: {e}")
 
-        # Run project-wide tools
-        cppcheck_result = self.run_cppcheck_on_project()
-        all_results.append(cppcheck_result)
-        xunused_result = self.run_xunused_on_project(source_files)
-        all_results.append(xunused_result)
-
-        # Generate consolidated report
         self._generate_report(all_results, output_file_path, source_files)
         
         logging.info(f"Comprehensive analysis completed successfully")
@@ -410,7 +490,6 @@ class CppAnalyzer:
     def _generate_report(self, results: List[AnalysisResult], output_path: Path, source_files: List[str]):
         """Generate the consolidated analysis report."""
         with open(output_path, "w") as report:
-            # Header
             report.write("# Comprehensive C++ Static Analysis Report\n\n")
             report.write(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             report.write(f"**Project Root:** {self.project_root}\n")
@@ -418,14 +497,12 @@ class CppAnalyzer:
             report.write(f"**Files Analyzed:** {len(source_files)}\n")
             report.write(f"**Parallel Jobs:** {self.parallel_jobs}\n\n")
 
-            # Tool availability summary
             report.write("## Tool Availability\n\n")
             for tool, available in self.available_tools.items():
                 status = "✓ Available" if available else "✗ Not Available"
                 report.write(f"- **{tool}**: {status}\n")
             report.write("\n")
 
-            # Summary statistics
             tool_stats = {}
             files_with_issues = set()
             
@@ -444,20 +521,18 @@ class CppAnalyzer:
             report.write(f"- **Clean Files:** {len(source_files) - len(files_with_issues)}\n\n")
 
             report.write("### Issues by Tool\n\n")
-            for tool, stats in tool_stats.items():
+            for tool, stats in sorted(tool_stats.items()):
                 if stats['total'] > 0:
-                    percentage = (stats['with_issues'] / stats['total']) * 100
-                    report.write(f"- **{tool}**: {stats['with_issues']}/{stats['total']} files ({percentage:.1f}%)\n")
+                    percentage = (stats['with_issues'] / stats['total']) * 100 if stats['total'] > 0 else 0
+                    report.write(f"- **{tool}**: {stats['with_issues']} issues found\n")
             report.write("\n")
 
-            # Group results by file
             results_by_file = {}
             for result in results:
                 if result.file_path not in results_by_file:
                     results_by_file[result.file_path] = []
                 results_by_file[result.file_path].append(result)
 
-            # Detailed results
             report.write("## Detailed Analysis Results\n\n")
             
             for file_path in sorted(results_by_file.keys()):
@@ -467,21 +542,18 @@ class CppAnalyzer:
                 if has_any_issues:
                     report.write(f"### 🔍 {file_path}\n\n")
                     
-                    for result in file_results:
-                        report.write(f"#### {result.tool_name}\n\n")
-                        
-                        if result.error:
-                            report.write(f"**Error:** {result.error}\n\n")
-                        elif result.has_issues:
-                            report.write("```\n")
-                            report.write(result.output)
-                            report.write("\n```\n\n")
-                        else:
-                            report.write("No issues found.\n\n")
+                    for result in sorted(file_results, key=lambda r: r.tool_name):
+                        if result.has_issues:
+                            report.write(f"#### {result.tool_name}\n\n")
+                            if result.error:
+                                report.write(f"**Error:** {result.error}\n\n")
+                            else:
+                                report.write("```\n")
+                                report.write(result.output.strip())
+                                report.write("\n```\n\n")
                     
                     report.write("---\n\n")
 
-            # Files with no issues
             clean_files = [f for f in source_files if f not in files_with_issues]
             if clean_files:
                 report.write("## Clean Files (No Issues Found)\n\n")
@@ -502,20 +574,19 @@ Tools included:
 - IKOS: Inferencing Kernel for Open Static Analysis
 - Flawfinder: Security-focused static analysis
 - xunused: Finds unused code
+- scan-build: Clang static analyzer wrapper
 
 Example usage:
-  ./cpp_analyze.py [options] /path/to/src [/path/to/build]
+  ./cpp_analyze.py [options] /path/to/src /path/to/build
 
 Positional Arguments:
   /path/to/src              Path to the project's source root directory.
-  /path/to/build            (Optional) Path to the build directory containing
-                            compile_commands.json. Defaults to /path/to/src.
+  /path/to/build            Path to the build directory containing compile_commands.json.
 
 Optional Arguments:
   -h, --help                Show this help message and exit.
   -o, --output FILE         Output file for the consolidated report.
-  -j, --parallel N          Number of parallel analysis jobs (default: number of
-                            available tools, capped by CPU cores).
+  -j, --parallel N          Number of parallel analysis jobs (default: number of available CPU cores).
   -v, --verbose             Enable verbose logging.
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -526,10 +597,8 @@ Optional Arguments:
         help="Path to project root directory"
     )
     parser.add_argument(
-        "compile_commands_dir",
-        nargs='?',
-        default=None,
-        help="Path to directory containing compile_commands.json (optional, defaults to project_root)"
+        "build_dir",
+        help="Path to the directory containing compile_commands.json"
     )
     parser.add_argument(
         "--output", "-o",
@@ -540,7 +609,7 @@ Optional Arguments:
         "--parallel", "-j",
         type=int,
         default=None,
-        help="Number of parallel analysis jobs (default: number of available tools, capped by CPU cores)."
+        help="Number of parallel analysis jobs (default: number of available CPU cores)."
     )
     parser.add_argument(
         "--verbose", "-v",
@@ -554,8 +623,7 @@ Optional Arguments:
         logging.getLogger().setLevel(logging.DEBUG)
 
     try:
-        compile_commands_dir = args.compile_commands_dir if args.compile_commands_dir else args.project_root
-        analyzer = CppAnalyzer(compile_commands_dir, args.project_root, args.parallel)
+        analyzer = CppAnalyzer(args.build_dir, args.project_root, args.parallel)
         output_file = analyzer.analyze_all_files(args.output)
         print(f"\n✅ Comprehensive C++ analysis completed successfully!")
         print(f"📊 Report saved to: {output_file}")
