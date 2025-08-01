@@ -598,7 +598,8 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
     else:
         base_for_output = project_root_for_no_output_dir
     
-    gemini_master_file_path = os.path.join(os.path.expanduser("~"), ".gemini", "GEMINI.md")
+    gemini_rules_dir = os.path.join(base_for_output, ".gemini")
+    gemini_master_file_path = os.path.join(gemini_rules_dir, "GEMINI.md")
     gemini_master_file_content = ["# Gemini CLI Rules\n\n"]
 
     for root, _, files in os.walk(actual_mdc_search_root):
