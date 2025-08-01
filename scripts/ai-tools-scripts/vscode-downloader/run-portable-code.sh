@@ -13,4 +13,4 @@ if [ ! -x "$INSTALL_DIR/code" ]; then
     exit 1
 fi
 
-"$INSTALL_DIR/code" "$@"
+"$INSTALL_DIR/code" --proxy-server="127.0.0.1:2080" --proxy-bypass-list="*.coreops.ru,*.devos.club"
