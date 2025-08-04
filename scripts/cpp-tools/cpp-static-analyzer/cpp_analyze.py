@@ -95,7 +95,7 @@ class CppAnalyzer:
         else:
             self.parallel_jobs = parallel_jobs
 
-        self.multi_threaded_tools = {'clangd', 'cppcheck', 'ikos', 'xunused'}
+        self.multi_threaded_tools = {'clangd'}
         self.single_threaded_tools = {'clang-static-analyzer', 'flawfinder', 'scan-build'}
 
         self.compile_commands = self._load_compile_commands()
@@ -267,40 +267,103 @@ class CppAnalyzer:
         except Exception as e:
             return AnalysisResult('clang-static-analyzer', file_path, '', str(e))
 
+    def _create_sanitized_compile_commands(self, tool_name: str) -> Path:
+        """Create a temporary compile_commands.json with absolute paths for a specific tool."""
+        original_compile_db_path = Path(self.compile_commands_dir) / 'compile_commands.json'
+        
+        with open(original_compile_db_path, "r") as f:
+            commands = json.load(f)
+        
+        sanitized_commands = []
+        for cmd in commands:
+            directory_path = Path(cmd['directory'])
+            
+            # Ensure the file exists
+            file_path = Path(cmd['file'])
+            if not file_path.is_absolute():
+                absolute_path = directory_path / file_path
+            else:
+                absolute_path = file_path
+            
+            normalized_path = Path(os.path.normpath(str(absolute_path)))
+            if not normalized_path.exists():
+                continue
+
+            cmd['file'] = str(normalized_path)
+
+            # Make all include paths absolute
+            new_arguments = []
+            args = cmd.get('arguments', shlex.split(cmd.get('command', '')))
+            
+            skip_next = False
+            for i, arg in enumerate(args):
+                if skip_next:
+                    skip_next = False
+                    continue
+
+                if arg in ('-I', '-isystem') and i + 1 < len(args):
+                    path = Path(args[i+1])
+                    if not path.is_absolute():
+                        path = directory_path / path
+                    new_arguments.extend([arg, str(path.resolve())])
+                    skip_next = True
+                elif arg.startswith('-I'):
+                    path = Path(arg[2:])
+                    if not path.is_absolute():
+                        path = directory_path / path
+                    new_arguments.append(f'-I{path.resolve()}')
+                elif arg.startswith('-isystem'):
+                    path = Path(arg[len('-isystem'):].lstrip())
+                    if not path.is_absolute():
+                        path = directory_path / path
+                    new_arguments.append(f'-isystem{path.resolve()}')
+                else:
+                    new_arguments.append(arg)
+            
+            if tool_name == 'xunused':
+                if '-fno-pch' not in new_arguments:
+                    new_arguments.append('-fno-pch')
+
+            cmd['arguments'] = new_arguments
+            if 'command' in cmd:
+                cmd['command'] = ' '.join(new_arguments)
+
+            sanitized_commands.append(cmd)
+        
+        temp_compile_db_path = Path(self.compile_commands_dir) / f'compile_commands.{tool_name}.json'
+        with open(temp_compile_db_path, "w") as f:
+            json.dump(sanitized_commands, f, indent=2)
+            
+        return temp_compile_db_path
+
     def run_cppcheck_on_project(self) -> AnalysisResult:
         """Run cppcheck on the entire project."""
         if not self.available_tools.get('cppcheck', False):
             return AnalysisResult('cppcheck', self.project_root, '', 'cppcheck not available')
             
         try:
-            original_compile_db_path = Path(self.compile_commands_dir) / 'compile_commands.json'
-            
-            # Filter compile_commands.json to include only existing files
-            with open(original_compile_db_path, "r") as f:
-                commands = json.load(f)
-            
-            existing_files_commands = []
-            for cmd in commands:
-                file_path = Path(cmd['file'])
-                if not file_path.is_absolute():
-                    file_path = Path(cmd['directory']) / file_path
-                
-                if file_path.exists():
-                    existing_files_commands.append(cmd)
-            
-            temp_compile_db_path = Path(self.compile_commands_dir) / 'compile_commands.cppcheck.json'
-            with open(temp_compile_db_path, "w") as f:
-                json.dump(existing_files_commands, f)
+            temp_compile_db_path = self._create_sanitized_compile_commands('cppcheck')
 
+            command = [
+                "cppcheck",
+                f"--project={temp_compile_db_path}",
+                "--enable=all",
+                "--inconclusive",
+                "--xml",
+                f"-j{self.parallel_jobs}",
+                "--verbose",
+                "--suppress=missingIncludeSystem",
+                "--suppress=unmatchedSuppression"
+            ]
+            
             result = subprocess.run(
-                ["cppcheck", f"--project={temp_compile_db_path}", "--enable=all", "--inconclusive", "--xml"],
+                command,
                 capture_output=True,
                 text=True,
                 timeout=600,
                 check=False,
             )
             
-            # Clean up the temporary file
             os.remove(temp_compile_db_path)
 
             output = result.stdout + result.stderr
@@ -310,26 +373,29 @@ class CppAnalyzer:
         except Exception as e:
             return AnalysisResult('cppcheck', self.project_root, '', str(e))
 
-    def run_ikos_on_file(self, file_path: str) -> AnalysisResult:
-        """Run IKOS static analyzer on a single file."""
+    def run_ikos_on_project(self) -> AnalysisResult:
+        """Run IKOS static analyzer on the entire project."""
         if not self.available_tools.get('ikos', False):
-            return AnalysisResult('ikos', file_path, '', 'IKOS not available')
-        
+            return AnalysisResult('ikos', self.project_root, '', 'IKOS not available')
+
         try:
-            compile_args = self._get_compile_args(file_path)
+            temp_compile_db_path = self._create_sanitized_compile_commands('ikos')
+            # ikos-scan does not take an output directory argument directly.
+            # It creates output.db in the current working directory.
             result = subprocess.run(
-                ["ikos", file_path] + compile_args + [f"--jobs={self.single_tool_threads}"],
+                ["ikos-scan", str(temp_compile_db_path)],
                 capture_output=True,
                 text=True,
-                timeout=180,
+                timeout=1800,
                 check=False,
             )
+            os.remove(temp_compile_db_path)
             output = result.stdout + result.stderr
-            return AnalysisResult('ikos', file_path, output)
+            return AnalysisResult('ikos', self.project_root, output)
         except subprocess.TimeoutExpired:
-            return AnalysisResult('ikos', file_path, '', 'Timeout expired')
+            return AnalysisResult('ikos', self.project_root, '', 'Timeout expired')
         except Exception as e:
-            return AnalysisResult('ikos', file_path, '', str(e))
+            return AnalysisResult('ikos', self.project_root, '', str(e))
 
     def run_flawfinder_on_file(self, file_path: str) -> AnalysisResult:
         """Run Flawfinder on a single file."""
@@ -351,20 +417,24 @@ class CppAnalyzer:
         except Exception as e:
             return AnalysisResult('flawfinder', file_path, '', str(e))
 
-    def run_xunused_on_project(self, source_files: List[str]) -> AnalysisResult:
+    def run_xunused_on_project(self) -> AnalysisResult:
         """Run xunused on the entire project."""
         if not self.available_tools.get('xunused', False):
             return AnalysisResult('xunused', self.project_root, '', 'xunused not available')
             
         try:
-            # Let xunused discover files from the compilation database
+            temp_compile_db_path = self._create_sanitized_compile_commands('xunused')
+            
             result = subprocess.run(
-                ["xunused", "-p", self.compile_commands_dir, f"--threads={self.single_tool_threads}"],
+                ["xunused", "-p", str(temp_compile_db_path), f"--threads={self.single_tool_threads}"],
                 capture_output=True,
                 text=True,
                 timeout=600,
                 check=False,
             )
+            
+            os.remove(temp_compile_db_path)
+
             output = result.stdout + result.stderr
             return AnalysisResult('xunused', self.project_root, output)
         except subprocess.TimeoutExpired:
@@ -372,32 +442,46 @@ class CppAnalyzer:
         except Exception as e:
             return AnalysisResult('xunused', self.project_root, '', str(e))
 
+    
+
     def run_scan_build_on_project(self) -> AnalysisResult:
         """Run scan-build on the entire project."""
         if not self.available_tools.get('scan-build', False):
             return AnalysisResult('scan-build', self.project_root, '', 'scan-build not available')
             
         try:
-            makefile_content = f"""
-CXXFLAGS += -I{self.project_root}
-SOURCES = {" ".join(self.get_source_files())}
-all:
-	@echo "Fake build for scan-build"
-"""
-            makefile_path = Path(self.project_root) / "Makefile.scan-build"
-            with open(makefile_path, "w") as f:
-                f.write(makefile_content)
+            # The build directory is where compile_commands.json is located.
+            # We should run the build command from there.
+            build_dir = self.compile_commands_dir
+            
+            # We assume 'make' is the build tool. This is a common case for CMake-generated build systems.
+            # We pass -k to keep going on errors, and -j to parallelize the build.
+            build_command = ["make", "-k", f"-j{self.parallel_jobs}"]
+
+            # The output directory for scan-build reports.
+            output_dir = Path("/tmp/scan-build-report")
+            
+            # Clean up previous reports if any
+            if output_dir.exists():
+                shutil.rmtree(output_dir)
+            output_dir.mkdir(parents=True, exist_ok=True)
 
             result = subprocess.run(
-                ["scan-build", "-o", "/tmp/scan-build-report", "make", "-f", str(makefile_path)],
+                ["scan-build", "--status-bugs", "-o", str(output_dir)] + build_command,
                 capture_output=True,
                 text=True,
-                timeout=600,
+                timeout=1800,  # Increased timeout for a full build
                 check=False,
-                cwd=self.project_root
+                cwd=build_dir
             )
+            
             output = result.stdout + result.stderr
-            os.remove(makefile_path)
+            
+            # Check for report files in the output directory
+            report_files = list(output_dir.glob('**/*.html'))
+            if not report_files:
+                output += "\nscan-build: No report files generated. The build might have failed or produced no output."
+
             return AnalysisResult('scan-build', self.project_root, output)
         except subprocess.TimeoutExpired:
             return AnalysisResult('scan-build', self.project_root, '', 'Timeout expired')
@@ -448,13 +532,13 @@ all:
         per_file_tools = {
             'clangd': self.run_clangd_check_on_file,
             'clang-static-analyzer': self.run_clang_static_analyzer_on_file,
-            'ikos': self.run_ikos_on_file,
             'flawfinder': self.run_flawfinder_on_file
         }
         
         project_tools = {
             'cppcheck': self.run_cppcheck_on_project,
-            'xunused': lambda: self.run_xunused_on_project(source_files),
+            'ikos': self.run_ikos_on_project,
+            'xunused': self.run_xunused_on_project,
             'scan-build': self.run_scan_build_on_project
         }
 
@@ -511,7 +595,7 @@ all:
                     tool_stats[result.tool_name] = {'total': 0, 'with_issues': 0}
                 
                 tool_stats[result.tool_name]['total'] += 1
-                if result.has_issues:
+                if result.has_issues or result.error:
                     tool_stats[result.tool_name]['with_issues'] += 1
                     files_with_issues.add(result.file_path)
 
@@ -524,7 +608,7 @@ all:
             for tool, stats in sorted(tool_stats.items()):
                 if stats['total'] > 0:
                     percentage = (stats['with_issues'] / stats['total']) * 100 if stats['total'] > 0 else 0
-                    report.write(f"- **{tool}**: {stats['with_issues']} issues found\n")
+                    report.write(f"- **{tool}**: {stats['with_issues']}/{stats['total']} files ({percentage:.1f}%)\n")
             report.write("\n")
 
             results_by_file = {}
@@ -537,13 +621,13 @@ all:
             
             for file_path in sorted(results_by_file.keys()):
                 file_results = results_by_file[file_path]
-                has_any_issues = any(r.has_issues for r in file_results)
+                has_any_issues = any(r.has_issues or r.error for r in file_results)
                 
                 if has_any_issues:
                     report.write(f"### 🔍 {file_path}\n\n")
                     
                     for result in sorted(file_results, key=lambda r: r.tool_name):
-                        if result.has_issues:
+                        if result.has_issues or result.error:
                             report.write(f"#### {result.tool_name}\n\n")
                             if result.error:
                                 report.write(f"**Error:** {result.error}\n\n")
