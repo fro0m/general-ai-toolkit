@@ -228,8 +228,10 @@ class CppAnalyzer:
             return AnalysisResult('clangd', file_path, '', 'clangd not available')
         
         try:
+            command = ["clangd", f"--compile-commands-dir={self.compile_commands_dir}", "--clang-tidy", f"--check={file_path}", f"-j={self.single_tool_threads}"]
+            logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
-                ["clangd", f"--compile-commands-dir={self.compile_commands_dir}", "--clang-tidy", f"--check={file_path}", f"-j={self.single_tool_threads}"],
+                command,
                 capture_output=True,
                 text=True,
                 timeout=120,
@@ -252,9 +254,11 @@ class CppAnalyzer:
             temp_dir.mkdir(exist_ok=True)
             compile_args = self._get_compile_args(file_path)
             
+            command = ["clang", "--analyze"] + compile_args + [file_path, 
+                 "-o", str(temp_dir), "-Xanalyzer", "-analyzer-output=text"]
+            logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
-                ["clang", "--analyze"] + compile_args + [file_path, 
-                 "-o", str(temp_dir), "-Xanalyzer", "-analyzer-output=text"],
+                command,
                 capture_output=True,
                 text=True,
                 timeout=300,
@@ -350,12 +354,12 @@ class CppAnalyzer:
                 "--enable=all",
                 "--inconclusive",
                 "--xml",
-                f"-j{self.parallel_jobs}",
                 "--verbose",
                 "--suppress=missingIncludeSystem",
                 "--suppress=unmatchedSuppression"
             ]
             
+            logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
                 command,
                 capture_output=True,
@@ -379,17 +383,22 @@ class CppAnalyzer:
             return AnalysisResult('ikos', self.project_root, '', 'IKOS not available')
 
         try:
-            temp_compile_db_path = self._create_sanitized_compile_commands('ikos')
-            # ikos-scan does not take an output directory argument directly.
+            build_dir = self.compile_commands_dir
+            build_command = ["make", "-k", f"-j{self.parallel_jobs}"]
+            
+            # ikos-scan is a wrapper around the build command.
             # It creates output.db in the current working directory.
+            command = ["ikos-scan"] + build_command
+            
+            logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
-                ["ikos-scan", str(temp_compile_db_path)],
+                command,
                 capture_output=True,
                 text=True,
                 timeout=1800,
                 check=False,
+                cwd=build_dir
             )
-            os.remove(temp_compile_db_path)
             output = result.stdout + result.stderr
             return AnalysisResult('ikos', self.project_root, output)
         except subprocess.TimeoutExpired:
@@ -403,8 +412,10 @@ class CppAnalyzer:
             return AnalysisResult('flawfinder', file_path, '', 'Flawfinder not available')
         
         try:
+            command = ["flawfinder", "--columns", "--context", file_path]
+            logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
-                ["flawfinder", "--columns", "--context", file_path],
+                command,
                 capture_output=True,
                 text=True,
                 timeout=60,
@@ -425,8 +436,14 @@ class CppAnalyzer:
         try:
             temp_compile_db_path = self._create_sanitized_compile_commands('xunused')
             
+            command = ["xunused", "-p", str(temp_compile_db_path), f"--threads={self.single_tool_threads}"]
+            source_files = self.get_source_files()
+            if source_files:
+                command.extend(source_files)
+
+            logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
-                ["xunused", "-p", str(temp_compile_db_path), f"--threads={self.single_tool_threads}"],
+                command,
                 capture_output=True,
                 text=True,
                 timeout=600,
@@ -466,8 +483,10 @@ class CppAnalyzer:
                 shutil.rmtree(output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
 
+            command = ["scan-build", "--status-bugs", "-o", str(output_dir)] + build_command
+            logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
-                ["scan-build", "--status-bugs", "-o", str(output_dir)] + build_command,
+                command,
                 capture_output=True,
                 text=True,
                 timeout=1800,  # Increased timeout for a full build
