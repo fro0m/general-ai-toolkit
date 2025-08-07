@@ -50,8 +50,8 @@ For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{var
   - This prevents multiple agents from working on the same task simultaneously and ensures tasks don't get stuck indefinitely
 
 ### 3. Product Requirements and Architecture Compliance
-- The product must satisfy `{ApplicationName}_product_requirements.md` and `{ApplicationName}_architecture.md` files
-- `{ApplicationName}_product_requirements.md` has **higher priority** than `{ApplicationName}_architecture.md`
+- The product must satisfy `{ApplicationName}-product-requirements.md` and `{ApplicationName}-architecture.md` files
+- `{ApplicationName}-product-requirements.md` has **higher priority** than `{ApplicationName}-architecture.md`
 - Before creating any new classes or major components, update the `{ApplicationName}_architecture.md` document to reflect these planned changes
 - Both documents must **always accurately represent the current state** of the project after any modifications
 

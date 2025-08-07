@@ -51,7 +51,7 @@ Follow this workflow for managing tasks:
             *   If any tests fail, debug and fix the underlying issues until all unit tests pass.
             *   **Do not proceed to documentation updates until all tests pass successfully.**
         *   **Product Requirements and Architecture Documentation Update:**
-            *   Update the `{ApplicationName}_product_requirements.md` and `{ApplicationName}_architecture.md` files. Ensure these documents accurately reflect the current state of the project after the changes.
+            *   Update the `{ApplicationName}-product-requirements.md` and `{ApplicationName}-architecture.md` files. Ensure these documents accurately reflect the current state of the project after the changes.
             *   No other documentation documents should be created or updated as part of this step.
             *   **Do not proceed to version control until documentation updates are completed successfully.**
         *   **Version Control:**

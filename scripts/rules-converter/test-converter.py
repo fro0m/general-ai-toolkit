@@ -4,7 +4,7 @@ Test script to demonstrate how to use the converter programmatically.
 """
 import os
 import sys
-from rules_converter.converter import convert_file, convert_directory
+from rules-converter.converter import convert_file, convert_directory
 
 
 def main():

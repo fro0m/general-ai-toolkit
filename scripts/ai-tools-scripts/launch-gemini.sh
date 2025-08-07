@@ -24,6 +24,14 @@ API_KEYS=(
 
     # ubego.inquire@gmail.com
     "AIzaSyDjD_e8qad9545_aiurKVZPI90g39brd2k"
+
+
+#konstantin.pro12@gmail.com
+"AIzaSyANErhi19puWpzsuT4Ahxd3SlnI8sZh-hQ"
+
+# annakolbasina22@gmail.com
+"AIzaSyCZTJedfGRqV8Dro3iAfBHpZpAdXkYmVI4"
+
 )
 
 # Select a random API key
@@ -34,5 +42,7 @@ KEY="${API_KEYS[$RANDOM_INDEX]}"
 #export GEMINI_API_KEY="$KEY"
 
 echo "The GEMINI_API_KEY="$KEY""
+echo "The command: gemini -y --proxy="http://127.0.0.1:2080" "$@""
+
 # Run the gemini CLI without specifying the key on the command line
 GEMINI_API_KEY="$KEY" gemini -y --proxy="http://127.0.0.1:2080" "$@"

@@ -9,7 +9,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'rules-converter=rules_converter.cli:main',
+            'rules-converter=rules-converter.cli:main',
         ],
     },
 )
