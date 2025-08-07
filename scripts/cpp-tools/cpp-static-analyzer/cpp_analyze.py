@@ -364,7 +364,7 @@ class CppAnalyzer:
                 command,
                 capture_output=True,
                 text=True,
-                timeout=600,
+                timeout=1800,
                 check=False,
             )
             
