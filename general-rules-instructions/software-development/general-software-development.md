@@ -76,6 +76,7 @@ When fixing bugs or addressing issues:
 - **Avoid**: Adding defensive code, excessive error handling, or workarounds that mask the underlying issue
 - **Prefer simplification**: If a function or component is problematic and its utility is questionable, remove it entirely rather than fixing it
 - **Argument evaluation**: If function arguments are unused or unnecessary, remove them instead of attempting to fix their implementation
+- **No Fallback Approaches**: Do not implement fallback logic, placeholders, or default behaviors when encountering incorrect or illegal input arguments. Use error logging instead of attempting to fix, guess, or compensate for invalid inputs. Correct function arguments are the responsibility of the caller, not the callee. Functions should fail fast and clearly when given invalid inputs rather than attempting to work around the problem
 
 ### 4. Code Quality and Maintenance Standards
 - Remove legacy code that is no longer in use, deprecated, or replaced by newer implementations
@@ -83,6 +84,8 @@ When fixing bugs or addressing issues:
 - Clean up temporary files created during development that are no longer needed
 - Ensure all code follows the project's established patterns and conventions
 - **Do not create file backups** (e.g., .bak, .backup, .old files) during development operations - rely on version control for file history and recovery
+- **No Backward Compatibility**: When introducing a new feature to replace an old one, remove the old implementation completely. Do not maintain parallel code paths or deprecated functionality for backward compatibility. Keep only the current, preferred approach to maintain code simplicity and reduce maintenance burden
+- **No Debugging/Testing Methods in Production Code**: Never create debugging, testing, or validation methods in the main project source code. These concerns should be handled by separate unit tests that test only the public API. Keep production code clean and focused solely on business functionality
 
 #### Code Comment Standards
 **Prohibited Comments**:
@@ -90,12 +93,13 @@ When fixing bugs or addressing issues:
 - **NO Obvious Code Explanations**: Do not add comments that simply restate what the code does (e.g., `i++; // increment i`)
 - **NO Section Annotations**: Do not annotate code with comment blocks that divide code into sections (e.g., `// === MAIN LOGIC ===`, `// --- Helper Functions ---`)
 - **NO Future planning** Do not add  TODO comments for genuine future improvements (sparingly)
+- **NO Comments Without Request**: Do not add comments to source code unless explicitly requested by the user. Code should be self-documenting through clear naming and structure
 
 **Allowed Comments**:
-- Complex business logic explanations that clarify **why** something is done, not **what** is done
-- Non-obvious algorithm explanations or mathematical formulas
-- Important warnings about potential side effects or limitations
-- API documentation for public interfaces (when required by project standards)
+- Complex business logic explanations that clarify **why** something is done, not **what** is done (only when explicitly requested)
+- Non-obvious algorithm explanations or mathematical formulas (only when explicitly requested)
+- Important warnings about potential side effects or limitations (only when explicitly requested)
+- API documentation for public interfaces (when required by project standards or explicitly requested)
 
 ### 5. Coding Guidelines Integration
 Use all coding guidelines from the `{CodingGuidelinesURLs}` list, which can contain both web URLs and local file paths. The content from these guidelines should be incorporated with the current file content and project requirements.
