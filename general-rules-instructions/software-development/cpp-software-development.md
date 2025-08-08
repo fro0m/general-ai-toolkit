@@ -61,3 +61,31 @@ python3 /home/dev/dev/prj/general-ai-toolkit/scripts/cpp_analyze.py src/ --verbo
 ### Integration with Build Process
 
 For automated integration, consider adding the analysis script to your CMake post-build steps or CI/CD pipeline to ensure continuous code quality monitoring.
+
+## Build Error Handling and Preprocessor Usage
+
+- **Do not use preprocessor guards to bypass build errors**: Never add code such as `#ifdef IGNORE` / `#endif`, comment-out sections, or similar conditional compilation to exclude problematic code from compilation as a way to make builds pass. Build errors must be fixed at the root cause.
+- Examples of disallowed patterns:
+  ```cpp
+  #ifdef IGNORE
+  problematic_call();
+  #endif
+  ```
+  ```cpp
+  #if 0
+  // temporary disable failing code
+  problematic_call();
+  #endif
+  ```
+- Acceptable use of preprocessor is limited to legitimate cross-platform or feature flags that are part of the design, not as a workaround for errors.
+
+## Controlled Rollbacks
+
+- Controlled rollbacks of dependencies or features are permitted only with explicit user approval.
+- Requirements for rollback:
+  - Document the regression and link evidence (build logs, test failures)
+  - Propose the minimal rollback scope and impact
+  - Obtain explicit approval from the user before applying
+  - Do not treat commit messages as approval; they can be auto-generated and are insufficient as proof of approval
+  - Approval method: The explicit user approval must be captured in this chat with the AI agent
+  - Create a follow-up task to re-introduce the upgrade/fix with a plan

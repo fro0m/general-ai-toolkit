@@ -86,8 +86,8 @@ When fixing bugs or addressing issues:
 - Clean up temporary files created during development that are no longer needed
 - Ensure all code follows the project's established patterns and conventions
 - **Do not create file backups** (e.g., .bak, .backup, .old files) during development operations - rely on version control for file history and recovery
-- **No Backward Compatibility**: When introducing a new feature to replace an old one, remove the old implementation completely. Do not maintain parallel code paths or deprecated functionality for backward compatibility. Keep only the current, preferred approach to maintain code simplicity and reduce maintenance burden
-- **No Debugging/Testing Methods in Production Code**: Never create debugging, testing, or validation methods in the main project source code. These concerns should be handled by separate unit tests that test only the public API. Keep production code clean and focused solely on business functionality
+- **No Backward Compatibility**: When introducing a new feature to replace an old one, remove the old implementation completely. Do not maintain parallel code paths or deprecated functionality for backward compatibility. Keep only the current, preferred approach to maintain code simplicity and reduce maintenance burden, and always refactor the project to use the current approach throughout the codebase
+- **No Debugging/Testing Methods in Production Code**: Never create debugging, testing, or validation methods in the main project source code. These concerns should be handled by separate unit tests that test only the public API. Keep production code clean and focused solely on business functionality. Prefer fewer unit-level checks over introducing test adapters or hooks to access internals
 
 #### Code Comment Standards
 **Prohibited Comments**:
@@ -137,7 +137,6 @@ Use all coding guidelines from the `{CodingGuidelinesURLs}` list, which can cont
 **ABSOLUTE PROHIBITION**: 
 - **NEVER disable failing builds** by excluding components, modules, or dependencies from the build process
 - **NEVER comment out or remove failing tests** to make the test suite pass
-- **NEVER use build flags or preprocessor directives** to bypass compilation errors without fixing the underlying issues
 - **NEVER downgrade dependencies or disable features** to avoid addressing compatibility problems
 - Every build error and test failure MUST be resolved through proper fixes, not avoidance tactics
 
