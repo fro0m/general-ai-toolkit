@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""
+Rules Converter - Command-line entry point script
+
+A multi-stage command-line tool that processes template-based rule files through 
+variable substitution, validation, and format conversion to generate ready-to-use 
+rules for different AI-powered code editors and assistants.
+
+Usage:
+    ./rules-converter.py SOURCE_DIRECTORY RULES_DESCRIPTION_JSON [--output OUTPUT_DIR]
+
+Examples:
+    # Basic usage with default output directory
+    ./rules-converter.py /path/to/project /path/to/rules-description.json
+    
+    # With custom output directory
+    ./rules-converter.py /path/to/project /path/to/rules-description.json --output /path/to/output
+"""
+
+import sys
+import os
+
+# Add the src directory to Python path
+script_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = os.path.join(script_dir, 'src')
+sys.path.insert(0, src_dir)
+
+def main():
+    """Main entry point that delegates to the CLI module."""
+    try:
+        from rules_converter.cli import main as cli_main
+        cli_main()
+    except ImportError as e:
+        print(f"Error: Cannot import rules-converter modules. Make sure the package is properly installed.")
+        print(f"Import error: {e}")
+        print(f"Try running: pip install -e .")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

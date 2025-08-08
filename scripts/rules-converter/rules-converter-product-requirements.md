@@ -92,7 +92,7 @@ The Rules Converter follows a 4-stage processing pipeline:
 
 ### Command Line Interface
 *   Accept source directory path (containing `raw_rules_template/`)
-*   Accept path to `rules-description.json` configuration file
+*   Accept path to `rules-description.json` configuration file (optional - defaults to `rules-definitions.json` in same directory as `raw_rules_template/`)
 *   Optional output directory specification
 *   Help and usage information
 ### Feature Prioritization (MoSCoW)
@@ -123,7 +123,7 @@ The Rules Converter follows a 4-stage processing pipeline:
 
 ### Input Files and Directories
 *   **Source Directory**: Contains `raw_rules_template/` subdirectory with template files
-*   **rules-description.json**: JSON configuration file with variable definitions
+*   **rules-description.json**: JSON configuration file with variable definitions (optional - defaults to `rules-definitions.json` in same directory as `raw_rules_template/`)
     ```json
     {
       "project_name": "MyProject",
@@ -136,8 +136,11 @@ The Rules Converter follows a 4-stage processing pipeline:
 
 ### Output Directory Structure
 ```
+source_directory/
+├── raw_rules_template/             # Input templates
+└── cooked_rules_template/          # Stage 1 output (sibling to raw_rules_template)
+
 copy-content-to-prj-directory/
-├── cooked_rules_template/          # Stage 1 output
 ├── .github/instructions/           # VS Code format
 ├── .roo/rules/                     # Roo Code format  
 ├── .windsurf/rules/               # Windsurf format
@@ -203,7 +206,10 @@ Note: Stage 2 validation errors are reported to standard output, not saved to a 
 
 ### Command Line Interface
 ```bash
-# Basic usage with default output directory
+# Basic usage with default configuration file (rules-definitions.json) and output directory
+./rules-converter.py /path/to/source/directory
+
+# Basic usage with explicit configuration file and default output directory
 ./rules-converter.py /path/to/source/directory /path/to/rules-description.json
 
 # With custom output directory  

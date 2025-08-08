@@ -6,14 +6,14 @@ authors = [
     "Developer <dev@example.com>"
 ]
 readme = "README.md"
-packages = [{include = "rules-converter", from = "src"}]
+packages = [{include = "rules_converter", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.8"
 click = "^8.1.3"
 
 [tool.poetry.scripts]
-rules-converter = "rules-converter.cli:main"
+rules-converter = "rules_converter.cli:main"
 
 
 [build-system]

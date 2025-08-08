@@ -3,8 +3,258 @@ Converter module for transforming Cursor IDE rules MDC files to VS Code instruct
 """
 import os
 import json
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
+
+
+def substitute_template_variables(content: str, variables: Dict[str, Any]) -> Tuple[str, List[str]]:
+    """
+    Substitute {variable} placeholders in content with values from variables dict.
+    
+    Args:
+        content: Text content with {variable} placeholders
+        variables: Dictionary of variable name -> value mappings
+        
+    Returns:
+        Tuple of (substituted_content, list_of_missing_variables)
+    """
+    # Find all {variable} patterns in the content
+    variable_pattern = re.compile(r'\{([^}]+)\}')
+    found_variables = variable_pattern.findall(content)
+    
+    # Track missing variables
+    missing_variables = []
+    substituted_content = content
+    
+    for var_name in found_variables:
+        if var_name in variables:
+            # Substitute the variable with its value
+            placeholder = f"{{{var_name}}}"
+            substituted_content = substituted_content.replace(placeholder, str(variables[var_name]))
+        else:
+            missing_variables.append(var_name)
+    
+    return substituted_content, missing_variables
+
+
+def load_rules_description_json(json_path: str) -> Dict[str, Any]:
+    """
+    Load and parse the rules-description.json configuration file.
+    
+    Args:
+        json_path: Path to the rules-description.json file
+        
+    Returns:
+        Dictionary containing variable definitions
+        
+    Raises:
+        FileNotFoundError: If the JSON file doesn't exist
+        json.JSONDecodeError: If the JSON file is malformed
+    """
+    if not os.path.exists(json_path):
+        raise FileNotFoundError(f"Configuration file not found: {json_path}")
+    
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        raise json.JSONDecodeError(f"Malformed JSON in {json_path}: {e.msg}", e.doc, e.pos)
+
+
+def process_stage1_template_substitution(raw_rules_dir: str, rules_json_path: str, cooked_rules_dir: str) -> None:
+    """
+    Stage 1: Template Variable Substitution
+    Process all template files in raw_rules_template directory and substitute variables.
+    
+    Args:
+        raw_rules_dir: Path to raw_rules_template directory
+        rules_json_path: Path to rules-description.json file
+        cooked_rules_dir: Path to output cooked_rules_template directory
+        
+    Raises:
+        ValueError: If any variables are missing from configuration
+        FileNotFoundError: If directories or files don't exist
+    """
+    if not os.path.isdir(raw_rules_dir):
+        raise FileNotFoundError(f"Raw rules template directory not found: {raw_rules_dir}")
+    
+    # Load variable definitions
+    variables = load_rules_description_json(rules_json_path)
+    
+    # Track all missing variables across all files
+    all_missing_variables = set()
+    
+    # Create output directory
+    os.makedirs(cooked_rules_dir, exist_ok=True)
+    
+    # Process all files recursively
+    for root, dirs, files in os.walk(raw_rules_dir):
+        for file in files:
+            input_file_path = os.path.join(root, file)
+            
+            # Calculate relative path from raw_rules_dir to maintain structure
+            rel_path = os.path.relpath(input_file_path, raw_rules_dir)
+            output_file_path = os.path.join(cooked_rules_dir, rel_path)
+            
+            # Create output directory structure
+            os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+            
+            # Read file content
+            try:
+                with open(input_file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Substitute variables
+                substituted_content, missing_vars = substitute_template_variables(content, variables)
+                
+                # Track missing variables
+                all_missing_variables.update(missing_vars)
+                
+                # Write substituted content to output file
+                with open(output_file_path, 'w', encoding='utf-8') as f:
+                    f.write(substituted_content)
+                    
+            except UnicodeDecodeError:
+                # For binary files, just copy them as-is
+                with open(input_file_path, 'rb') as f_in:
+                    with open(output_file_path, 'wb') as f_out:
+                        f_out.write(f_in.read())
+    
+    # If any variables are missing, show error and raise exception
+    if all_missing_variables:
+        missing_list = sorted(list(all_missing_variables))
+        error_msg = f"Missing variables in rules-description.json: {', '.join(missing_list)}"
+        print(f"Error: {error_msg}")
+        
+        # Clean up cooked_rules_dir on error
+        import shutil
+        if os.path.exists(cooked_rules_dir):
+            shutil.rmtree(cooked_rules_dir)
+        
+        raise ValueError(error_msg)
+
+
+def extract_file_paths_from_content(content: str) -> List[str]:
+    """
+    Extract potential file paths and directory references from content.
+    
+    Args:
+        content: Text content to scan for file paths
+        
+    Returns:
+        List of potential file paths found in the content
+    """
+    paths = []
+    
+    # Common path patterns to look for
+    path_patterns = [
+        # Absolute paths starting with / or ~
+        r'["\']([/~][^\s"\']+)["\']',
+        r'["\']([A-Za-z]:[\\\/][^\s"\']+)["\']',  # Windows paths
+        # Relative paths 
+        r'["\']([.]{1,2}[/\\][^\s"\']+)["\']',
+        # Common file extensions
+        r'["\']([^\s"\']+\.[a-zA-Z0-9]{1,5})["\']',
+        # Path-like patterns without quotes
+        r'\b([/~][^\s]+)\b',
+        r'\b([.]{1,2}[/\\][^\s]+)\b',
+    ]
+    
+    for pattern in path_patterns:
+        matches = re.findall(pattern, content)
+        paths.extend(matches)
+    
+    # Remove duplicates while preserving order
+    unique_paths = []
+    seen = set()
+    for path in paths:
+        if path not in seen and len(path) > 1:  # Filter out very short matches
+            seen.add(path)
+            unique_paths.append(path)
+    
+    return unique_paths
+
+
+def validate_file_path(path: str, base_dir: Optional[str] = None) -> Tuple[bool, str]:
+    """
+    Validate if a file path exists and is accessible.
+    
+    Args:
+        path: File path to validate
+        base_dir: Base directory for relative paths
+        
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    try:
+        # Handle relative paths
+        if not os.path.isabs(path) and base_dir:
+            full_path = os.path.join(base_dir, path)
+        else:
+            full_path = path
+        
+        # Expand user home directory
+        full_path = os.path.expanduser(full_path)
+        
+        if os.path.exists(full_path):
+            return True, ""
+        else:
+            return False, f"Path does not exist: {path}"
+            
+    except (OSError, ValueError) as e:
+        return False, f"Invalid path '{path}': {str(e)}"
+
+
+def process_stage2_path_validation(cooked_rules_dir: str) -> List[str]:
+    """
+    Stage 2: Path and File Validation
+    Parse all files in cooked_rules_template and validate file paths and references.
+    
+    Args:
+        cooked_rules_dir: Path to cooked_rules_template directory
+        
+    Returns:
+        List of validation error messages (empty if all paths are valid)
+    """
+    if not os.path.isdir(cooked_rules_dir):
+        return [f"Cooked rules directory not found: {cooked_rules_dir}"]
+    
+    validation_issues = []
+    
+    # Process all files recursively
+    for root, _, files in os.walk(cooked_rules_dir):
+        for file in files:
+            file_path = os.path.join(root, file)
+            
+            try:
+                # Try to read as text file
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Extract potential file paths
+                found_paths = extract_file_paths_from_content(content)
+                
+                # Validate each path
+                for path in found_paths:
+                    # Skip very common patterns that are not file paths
+                    if any(skip in path.lower() for skip in ['http://', 'https://', 'mailto:', 'ftp://']):
+                        continue
+                    
+                    is_valid, error_msg = validate_file_path(path, os.path.dirname(file_path))
+                    
+                    if not is_valid:
+                        rel_file_path = os.path.relpath(file_path, cooked_rules_dir)
+                        validation_issues.append(f"In {rel_file_path}: {error_msg}")
+                        
+            except UnicodeDecodeError:
+                # Skip binary files
+                continue
+            except Exception as e:
+                rel_file_path = os.path.relpath(file_path, cooked_rules_dir)
+                validation_issues.append(f"Error reading {rel_file_path}: {str(e)}")
+    
+    return validation_issues
 
 
 def parse_mdc_file(file_path: str) -> str:
@@ -444,11 +694,11 @@ def save_gemini_cli_instructions(instructions_content: str, output_path: str) ->
 
 def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> Tuple[str, str, str, str, str]:
     """
-    Convert a single MDC file to VS Code instructions format, Roo Code format, Windsurf format, Cline format, and Gemini CLI format.
+    Convert a single template file to all target formats.
     
     Args:
-        input_path_str: Path to the input MDC file
-        output_dir_str: Directory to save the output file (optional)
+        input_path_str: Path to the input template file
+        output_dir_str: Directory to save the output files (optional)
         
     Returns:
         Tuple of (VS Code instructions file path, Roo Code instructions file path, Windsurf instructions file path, Cline instructions file path, Gemini CLI instructions file path)
@@ -465,24 +715,11 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         cline_instructions_content = convert_to_cline_instructions(mdc_content)
         gemini_cli_instructions_content = convert_to_gemini_cli_instructions(mdc_content)
         
-        base_for_output: str
+        # Determine base output directory
         if output_dir_str:
             base_for_output = os.path.abspath(output_dir_str)
         else:
-            # Check if input is inside .cursor/rules structure
-            path_parts = Path(input_file_dir).parts
-            try:
-                rules_index = path_parts.index("rules")
-                cursor_index = path_parts.index(".cursor")
-                if rules_index == cursor_index + 1 and rules_index == len(path_parts) -1 : # .cursor/rules is the immediate parent
-                     # Go up two levels from 'rules' to get parent of '.cursor'
-                    base_for_output = str(Path(input_file_dir).parent.parent)
-                else: # .cursor/rules/some/sub/dir
-                    # Find the parent of .cursor
-                    base_for_output = str(Path(input_file_dir).parents[len(path_parts) - 1 - cursor_index -1])
-
-            except ValueError: # .cursor or rules not in path
-                base_for_output = input_file_dir
+            base_for_output = input_file_dir
         
         # VS Code output structure: base_for_output/.github/instructions/original_filename.instructions.md
         github_instructions_dir = os.path.join(base_for_output, ".github", "instructions")
@@ -555,14 +792,14 @@ def copy_file(input_path: str, output_dir: str) -> str:
 
 def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) -> Tuple[List[str], List[str], List[str], List[str], List[str], List[str]]:
     """
-    Convert all MDC files in a directory and its subdirectories.
-    If the input directory is not .cursor/rules, it will specifically look for .cursor/rules within it.
-    Handles output directory structure based on whether an output directory is specified.
-    Also copies non-MDC files to the output directory if one is specified.
+    Convert all template files in a directory and its subdirectories.
+    Input directory should contain processed template files (from Stage 1).
+    Converts files to all target formats (VS Code, Roo Code, Windsurf, Cline, Gemini).
+    Also copies non-template files to the output directory.
     
     Args:
-        input_dir_str: Directory containing MDC files or a project root.
-        output_dir_str: Directory to save output files (optional).
+        input_dir_str: Directory containing processed template files (cooked_rules_template).
+        output_dir_str: Directory to save output files.
         
     Returns:
         Tuple containing (list of VS Code converted file paths, list of Roo Code converted file paths, list of Windsurf converted file paths, list of Cline converted file paths, list of Gemini CLI converted file paths, list of copied file paths)
@@ -575,82 +812,70 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
     gemini_cli_converted_files = []
     copied_files = []
 
-    actual_mdc_search_root: str
-    project_root_for_no_output_dir: str 
-
-    # Check if input_dir_str itself is '.cursor/rules' or a subdirectory within it
-    path_obj = Path(input_dir_abs)
-    if path_obj.name == "rules" and path_obj.parent.name == ".cursor":
-        actual_mdc_search_root = input_dir_abs
-        project_root_for_no_output_dir = str(path_obj.parent.parent) # Parent of .cursor
-    else:
-        # Assume input_dir_str is a project root, look for .cursor/rules within it
-        actual_mdc_search_root = os.path.join(input_dir_abs, ".cursor", "rules")
-        project_root_for_no_output_dir = input_dir_abs
-
-    if not os.path.isdir(actual_mdc_search_root):
-        print(f"Info: MDC rule directory not found at {actual_mdc_search_root}. No .mdc files will be converted from this path.")
+    if not os.path.isdir(input_dir_abs):
+        print(f"Info: Input directory not found at {input_dir_abs}. No files will be converted from this path.")
         return [], [], [], [], [], []
 
-    base_for_output: str
+    # Use provided output directory or the parent of input directory
     if output_dir_str:
         base_for_output = os.path.abspath(output_dir_str)
     else:
-        base_for_output = project_root_for_no_output_dir
+        base_for_output = os.path.dirname(input_dir_abs)
     
     gemini_rules_dir = os.path.join(base_for_output, ".gemini")
     gemini_master_file_path = os.path.join(gemini_rules_dir, "GEMINI.md")
     gemini_master_file_content = ["# Gemini CLI Rules\n\n"]
 
-    for root, _, files in os.walk(actual_mdc_search_root):
+    for root, _, files in os.walk(input_dir_abs):
         for file in files:
-            input_path_abs = os.path.join(root, file)
+            input_file_path = os.path.join(root, file)
             
-            # rel_path is relative to actual_mdc_search_root to preserve structure within .github/instructions and .roo/rules
-            rel_path_from_search_root = os.path.relpath(root, actual_mdc_search_root)
-            if rel_path_from_search_root == '.':
-                rel_path_from_search_root = ''
+            # rel_path is relative to input_dir_abs to preserve structure in output directories
+            rel_path_from_input = os.path.relpath(root, input_dir_abs)
+            if rel_path_from_input == '.':
+                rel_path_from_input = ''
                 
+            # Process template files (.mdc files)
             if file.endswith(".mdc"):
-                mdc_content = parse_mdc_file(input_path_abs)
+                mdc_content = parse_mdc_file(input_file_path)
                 vscode_instructions_content = convert_to_vscode_instructions(mdc_content)
                 roo_instructions_content = convert_to_roo_instructions(mdc_content)
                 windsurf_instructions_content = convert_to_windsurf_instructions(mdc_content)
                 cline_instructions_content = convert_to_cline_instructions(mdc_content)
                 gemini_cli_instructions_content = convert_to_gemini_cli_instructions(mdc_content)
                 
-                # Determine output paths
-                # VS Code: base_for_output / .github / instructions / rel_path_from_search_root / filename.instructions.md
-                vscode_output_instructions_subdir = os.path.join(base_for_output, ".github", "instructions", rel_path_from_search_root)
-                vscode_output_filename = os.path.splitext(os.path.basename(input_path_abs))[0] + ".instructions.md"
+                # Determine output paths maintaining directory structure
+                # VS Code: base_for_output / .github / instructions / rel_path_from_input / filename.instructions.md
+                vscode_output_instructions_subdir = os.path.join(base_for_output, ".github", "instructions", rel_path_from_input)
+                vscode_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".instructions.md"
                 vscode_output_path = os.path.join(vscode_output_instructions_subdir, vscode_output_filename)
                 save_vscode_instructions(vscode_instructions_content, vscode_output_path)
                 vscode_converted_files.append(vscode_output_path)
                 
-                # Roo Code: base_for_output / .roo / rules / rel_path_from_search_root / filename.md
-                roo_output_rules_subdir = os.path.join(base_for_output, ".roo", "rules", rel_path_from_search_root)
-                roo_output_filename = os.path.splitext(os.path.basename(input_path_abs))[0] + ".md"
+                # Roo Code: base_for_output / .roo / rules / rel_path_from_input / filename.md
+                roo_output_rules_subdir = os.path.join(base_for_output, ".roo", "rules", rel_path_from_input)
+                roo_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
                 roo_output_path = os.path.join(roo_output_rules_subdir, roo_output_filename)
                 save_roo_instructions(roo_instructions_content, roo_output_path)
                 roo_converted_files.append(roo_output_path)
                 
-                # Windsurf: base_for_output / .windsurf / rules / rel_path_from_search_root / filename.md
-                windsurf_output_rules_subdir = os.path.join(base_for_output, ".windsurf", "rules", rel_path_from_search_root)
-                windsurf_output_filename = os.path.splitext(os.path.basename(input_path_abs))[0] + ".md"
+                # Windsurf: base_for_output / .windsurf / rules / rel_path_from_input / filename.md
+                windsurf_output_rules_subdir = os.path.join(base_for_output, ".windsurf", "rules", rel_path_from_input)
+                windsurf_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
                 windsurf_output_path = os.path.join(windsurf_output_rules_subdir, windsurf_output_filename)
                 save_windsurf_instructions(windsurf_instructions_content, windsurf_output_path)
                 windsurf_converted_files.append(windsurf_output_path)
                 
-                # Cline: base_for_output / .clinerules / rel_path_from_search_root / filename.md
-                cline_output_rules_subdir = os.path.join(base_for_output, ".clinerules", rel_path_from_search_root)
-                cline_output_filename = os.path.splitext(os.path.basename(input_path_abs))[0] + ".md"
+                # Cline: base_for_output / .clinerules / rel_path_from_input / filename.md
+                cline_output_rules_subdir = os.path.join(base_for_output, ".clinerules", rel_path_from_input)
+                cline_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
                 cline_output_path = os.path.join(cline_output_rules_subdir, cline_output_filename)
                 save_cline_instructions(cline_instructions_content, cline_output_path)
                 cline_converted_files.append(cline_output_path)
 
-                # Gemini CLI: base_for_output / .gemini / rel_path_from_search_root / filename.md
-                gemini_cli_output_rules_subdir = os.path.join(base_for_output, ".gemini", rel_path_from_search_root)
-                gemini_cli_output_filename = os.path.splitext(os.path.basename(input_path_abs))[0] + ".md"
+                # Gemini CLI: base_for_output / .gemini / rel_path_from_input / filename.md
+                gemini_cli_output_rules_subdir = os.path.join(base_for_output, ".gemini", rel_path_from_input)
+                gemini_cli_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
                 gemini_cli_output_path = os.path.join(gemini_cli_output_rules_subdir, gemini_cli_output_filename)
                 save_gemini_cli_instructions(gemini_cli_instructions_content, gemini_cli_output_path)
                 gemini_cli_converted_files.append(gemini_cli_output_path)
@@ -659,14 +884,14 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 relative_path_for_import = os.path.relpath(gemini_cli_output_path, gemini_rules_dir)
                 gemini_master_file_content.append(f"@{relative_path_for_import}\n")
 
-            elif output_dir_str: # Only copy non-MDC files if an output_dir_str is specified
-                # Non-MDC files are copied relative to output_dir_str, maintaining structure from actual_mdc_search_root
-                # output_dir_str / rel_path_from_search_root / file
-                file_output_dir_specific = os.path.join(os.path.abspath(output_dir_str), rel_path_from_search_root)
-                # Note: copy_file expects output_dir to be the direct parent for the file, not a base output dir
-                output_path = copy_file(input_path_abs, file_output_dir_specific)
+            else:
+                # Copy non-template files maintaining directory structure
+                # base_for_output / rel_path_from_input / file
+                file_output_dir_specific = os.path.join(base_for_output, rel_path_from_input)
+                output_path = copy_file(input_file_path, file_output_dir_specific)
                 copied_files.append(output_path)
 
+    # Write Gemini master file
     with open(gemini_master_file_path, 'w', encoding='utf-8') as f:
         f.write("".join(gemini_master_file_content))
     gemini_cli_converted_files.append(gemini_master_file_path)

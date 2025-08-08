@@ -52,29 +52,43 @@ This project uses Poetry for dependency management.
 
 After installation, you can run the script using `poetry run`.
 
-### Convert a single file:
+### Basic usage with default configuration:
 
 ```bash
-poetry run rules-converter path/to/file.mdc
+poetry run rules-converter path/to/project
 ```
 
-### Convert all MDC files in a directory and copy other files (recursive):
+This will look for `rules-definitions.json` in the same directory as `raw_rules_template/` for variable substitution.
+
+### Specify a custom configuration file:
 
 ```bash
-poetry run rules-converter path/to/directory
+poetry run rules-converter path/to/project path/to/rules-description.json
 ```
 
 ### Convert and save to a specific output directory:
 
 ```bash
-poetry run rules-converter path/to/directory -o path/to/output
+poetry run rules-converter path/to/project -o path/to/output
 ```
 
-When converting a directory, the tool will:
-- Convert `.mdc` files to VS Code instruction files (`.instructions.md`) in `.github/instructions/`, Roo Code rules files (`.md`) in `.roo/rules/`, Windsurf rules files (`.md`) in `.windsurf/rules/`, and Cline rules files (`.md`) in `.clinerules/`.
+### Full example with explicit configuration and output directory:
+
+```bash
+poetry run rules-converter path/to/project path/to/rules-description.json -o path/to/output
+```
+
+The tool processes template files through a 4-stage pipeline:
+1. **Template Variable Substitution** - Replace `{variable}` placeholders with values from the JSON configuration file
+2. **Path and File Validation** - Validate all file paths and references in processed rules  
+3. **Format Conversion** - Convert to VS Code, Roo Code, Windsurf, Cline, and Gemini formats
+4. **Deployment** - Place files in correct directory structure for each tool
+
+When processing, the tool will:
+- Convert `.mdc` template files to VS Code instruction files (`.instructions.md`) in `.github/instructions/`, Roo Code rules files (`.md`) in `.roo/rules/`, Windsurf rules files (`.md`) in `.windsurf/rules/`, and Cline rules files (`.md`) in `.clinerules/`.
 - For Gemini CLI, it will create a `.gemini/` directory in the project for individual rules and a `GEMINI.md` in `~/.gemini/` to import them.
-- Copy all non-`.mdc` files from the source directory to the output directory (if output directory is specified), preserving the directory structure.
-- Maintain the directory structure inside the `.github/instructions`, `.roo/rules`, `.windsurf/rules`, and `.clinerules` directories.
+- Copy all non-template files from the source directory to the output directory (if output directory is specified), preserving the directory structure.
+- Maintain the directory structure inside each tool's rules directories.
 
 ### Help
 
