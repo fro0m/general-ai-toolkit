@@ -16,7 +16,7 @@ It integrates the following tools:
 The script requires two main arguments: the path to your build directory (containing `compile_commands.json`) and the path to your source directory.
 
 ```bash
-./cpp_analyze.py /path/to/build /path/to/src
+./cpp-analyze.py /path/to/build /path/to/src
 ```
 
 This command analyzes the source files in `/path/to/src` using the compilation database found in `/path/to/build/compile_commands.json`.
@@ -25,12 +25,12 @@ This command analyzes the source files in `/path/to/src` using the compilation d
 
 -   `--output <file>` or `-o <file>`: Specify a custom output file for the consolidated report.
     ```bash
-    ./cpp_analyze.py /path/to/build /path/to/src --output cpp_analysis_report.txt
+    ./cpp-analyze.py /path/to/build /path/to/src --output cpp-analysis-report.txt
     ```
 
 -   `--parallel <jobs>` or `-j <jobs>`: Set the number of parallel analysis jobs.
     ```bash
-    ./cpp_analyze.py /path/to/build /path/to/src --parallel 4
+    ./cpp-analyze.py /path/to/build /path/to/src --parallel 4
     ```
 -   `--verbose` or `-v`: Enable verbose logging for debugging purposes.
 

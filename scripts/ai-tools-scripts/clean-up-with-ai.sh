@@ -60,7 +60,7 @@ tasks=(
   "Ensure uninitialized variables have explicit default value initialization. Exclude classes and structs with no arguments constructors"
   "move all constants to anonymous namespace starting with k letter"
   "Change the order of field declarations for better readability: first the constructor and methods, then the attributes. Order of class sections should be public, protected, private"
-  "Fix issues found by static analyzers described in the report. /home/dev/dev/prj/general-ai-toolkit/scripts/cpp-tools/cpp-static-analyzer/cpp_analysis_report.txt"
+  "Fix issues found by static analyzers described in the report. /home/dev/dev/prj/general-ai-toolkit/scripts/cpp-tools/cpp-static-analyzer/cpp-analysis-report.txt"
 )
 
 for CURRENT_TASK in "${tasks[@]}"; do

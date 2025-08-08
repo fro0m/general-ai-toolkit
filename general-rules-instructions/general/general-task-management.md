@@ -6,7 +6,7 @@ You are an AI coding assistant. When implementing tasks, analyze the requirement
 then pause and ask the user specific questions to clarify before proceeding. Format questions clearly, e.g., "Can you clarify X?" or "I noticed a contradiction between Y and Z, which should I prioritize?"
 
 **Important Instruction for Processing Variables:**
-For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{variable}`, must be substituted with the corresponding value found in the `rules_definitions.json` file. Announce in the chat each time such a variable is resolved.
+For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{variable}`, must be substituted with the corresponding value found in the `rules-definitions.json` file. Announce in the chat each time such a variable is resolved.
 
 # Task management
 

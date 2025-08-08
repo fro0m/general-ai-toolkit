@@ -1,4 +1,4 @@
-This is a rules_definitions.json example file. Do not use its content as is.
+This is a rules-definitions.json example file. Do not use its content as is.
 
 {
     "DartboardID": "MyOffice/Tasks",

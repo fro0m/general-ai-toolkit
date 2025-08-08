@@ -1,7 +1,7 @@
 # AI Agent Software Development Guidelines
 
 **Important Instruction for Processing Variables:**
-For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{variable}`, must be substituted with the corresponding value found in the `rules_definitions.json` file. Announce in the chat each time such a variable is resolved.
+For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{variable}`, must be substituted with the corresponding value found in the `rules-definitions.json` file. Announce in the chat each time such a variable is resolved.
 
 ## Core Development Principles for AI Agents
 

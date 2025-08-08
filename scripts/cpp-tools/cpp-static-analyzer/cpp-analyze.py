@@ -14,17 +14,17 @@ a consolidated report with all issues found. It integrates:
 - scan-build
 
 Example Usage:
-   ./cpp_analyze.py /path/to/build /path/to/src
+   ./cpp-analyze.py /path/to/build /path/to/src
 
 This command analyzes the source files in `/path/to/src` using the compilation
 database found in `/path/to/build/compile_commands.json`.
 
 Additional options:
 - To specify a custom output file for the report:
-  ./cpp_analyze.py /path/to/build /path/to/src --output cpp_analysis_report.txt
+  ./cpp-analyze.py /path/to/build /path/to/src --output cpp-analysis-report.txt
 
 - To enable parallel analysis with 4 jobs:
-  ./cpp_analyze.py /path/to/build /path/to/src --parallel 4
+  ./cpp-analyze.py /path/to/build /path/to/src --parallel 4
 
 Requirements:
 - Python 3.x
@@ -534,7 +534,7 @@ class CppAnalyzer:
         
         return list(set(filtered_files))
 
-    def analyze_all_files(self, output_file: str = "cpp_analysis_report.txt") -> str:
+    def analyze_all_files(self, output_file: str = "cpp-analysis-report.txt") -> str:
         """Analyze all files and generate consolidated report."""
         output_file_path = Path(output_file).resolve()
         logging.info(f"Starting comprehensive C++ analysis")
@@ -680,7 +680,7 @@ Tools included:
 - scan-build: Clang static analyzer wrapper
 
 Example usage:
-  ./cpp_analyze.py [options] /path/to/src /path/to/build
+  ./cpp-analyze.py [options] /path/to/src /path/to/build
 
 Positional Arguments:
   /path/to/src              Path to the project's source root directory.
@@ -705,8 +705,8 @@ Optional Arguments:
     )
     parser.add_argument(
         "--output", "-o",
-        default="cpp_analysis_report.txt",
-        help="Output file for the consolidated report (default: cpp_analysis_report.txt)"
+        default="cpp-analysis-report.txt",
+        help="Output file for the consolidated report (default: cpp-analysis-report.txt)"
     )
     parser.add_argument(
         "--parallel", "-j",
