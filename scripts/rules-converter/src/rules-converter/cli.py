@@ -14,16 +14,11 @@ from .converter import convert_directory, convert_file
     type=click.Path(), 
     help='Directory to save converted files. If not specified, files are saved alongside the original files.'
 )
-@click.option(
-    '--recursive', '-r', 
-    is_flag=True, 
-    default=True, 
-    help='Process directories recursively (default: True).'
-)
-def main(input_path, output_dir, recursive):
+def main(input_path, output_dir):
     """
     Convert Cursor IDE rules MDC files to VS Code instruction files, Roo Code rules files, Windsurf rules files, and Cline rules files.
     Also copies non-MDC files from the source directory to the output directory.
+    Directories are processed recursively by default.
     
     INPUT_PATH can be either a single file or a directory.
     
@@ -32,7 +27,7 @@ def main(input_path, output_dir, recursive):
         # Convert a single file
         rules-converter path/to/file.mdc
         
-        # Convert all .mdc files in a directory and copy other files
+        # Convert all .mdc files in a directory recursively and copy other files
         rules-converter path/to/directory
         
         # Convert and save to specific output directory
@@ -60,39 +55,34 @@ def main(input_path, output_dir, recursive):
             click.echo(f"  - Gemini CLI: {gemini_cli_output_path}")
         
         elif os.path.isdir(input_path):
-            if recursive:
-                vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, gemini_cli_converted_files, copied_files = convert_directory(input_path, output_dir)
-                total_processed = len(vscode_converted_files) + len(copied_files)
-                
-                click.echo(f"Processed {total_processed} files from {input_path}")
-                click.echo(f"- Converted {len(vscode_converted_files)} .mdc files")
-                click.echo(f"  - VS Code instructions: {len(vscode_converted_files)} files")
-                click.echo(f"  - Roo Code rules: {len(roo_converted_files)} files")
-                click.echo(f"  - Windsurf rules: {len(windsurf_converted_files)} files")
-                click.echo(f"  - Cline rules: {len(cline_converted_files)} files")
-                click.echo(f"  - Gemini CLI rules: {len(gemini_cli_converted_files)} files")
-                click.echo(f"- Copied {len(copied_files)} other files")
-                
-                if vscode_converted_files or roo_converted_files or windsurf_converted_files or cline_converted_files or gemini_cli_converted_files:
-                    click.echo("\nGenerated files:")
-                    for file in vscode_converted_files:
-                        click.echo(f"  - VS Code: {file}")
-                    for file in roo_converted_files:
-                        click.echo(f"  - Roo Code: {file}")
-                    for file in windsurf_converted_files:
-                        click.echo(f"  - Windsurf: {file}")
-                    for file in cline_converted_files:
-                        click.echo(f"  - Cline: {file}")
-                    for file in gemini_cli_converted_files:
-                        click.echo(f"  - Gemini CLI: {file}")
-                    for file in copied_files:
-                        click.echo(f"  - Copied: {file}")
-                else:
-                    click.echo("No files found.")
+            vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, gemini_cli_converted_files, copied_files = convert_directory(input_path, output_dir)
+            total_processed = len(vscode_converted_files) + len(copied_files)
+            
+            click.echo(f"Processed {total_processed} files from {input_path}")
+            click.echo(f"- Converted {len(vscode_converted_files)} .mdc files")
+            click.echo(f"  - VS Code instructions: {len(vscode_converted_files)} files")
+            click.echo(f"  - Roo Code rules: {len(roo_converted_files)} files")
+            click.echo(f"  - Windsurf rules: {len(windsurf_converted_files)} files")
+            click.echo(f"  - Cline rules: {len(cline_converted_files)} files")
+            click.echo(f"  - Gemini CLI rules: {len(gemini_cli_converted_files)} files")
+            click.echo(f"- Copied {len(copied_files)} other files")
+            
+            if vscode_converted_files or roo_converted_files or windsurf_converted_files or cline_converted_files or gemini_cli_converted_files:
+                click.echo("\nGenerated files:")
+                for file in vscode_converted_files:
+                    click.echo(f"  - VS Code: {file}")
+                for file in roo_converted_files:
+                    click.echo(f"  - Roo Code: {file}")
+                for file in windsurf_converted_files:
+                    click.echo(f"  - Windsurf: {file}")
+                for file in cline_converted_files:
+                    click.echo(f"  - Cline: {file}")
+                for file in gemini_cli_converted_files:
+                    click.echo(f"  - Gemini CLI: {file}")
+                for file in copied_files:
+                    click.echo(f"  - Copied: {file}")
             else:
-                # Process only the files in the top directory (not implemented)
-                click.echo("Non-recursive mode not implemented.")
-                sys.exit(1)
+                click.echo("No files found.")
         
         else:
             click.echo(f"Error: {input_path} is neither a file nor a directory.")
