@@ -44,10 +44,12 @@ For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{var
 
 ### 2. Task Management and Execution
 - **Task Status Handling**:
-  - When a task is started, update its status to "Doing" and record the start time in the task description using the format: "Execution started at: YYYY-MM-DD Thh:mm"
-  - If a task is in "Doing" status and has been worked on for less than 2 hours, skip it as it's likely being handled by another AI agent
-  - Only pick up tasks that are either in "To-do" status or have been in "Doing" status for more than 2 hours
-  - This prevents multiple agents from working on the same task simultaneously and ensures tasks don't get stuck indefinitely
+  - **Before starting work**: Always check if a task is already in "Doing" status. If it is, skip it unless explicitly overridden by the user
+  - **When starting a task**: Update its status to "Doing" and add a timestamp comment in the task description using the format: "Started by AI agent at: YYYY-MM-DDTHH:MM:SS"
+  - **Task completion**: When finishing work on a task, update the status to "Done" or the appropriate completion status and add: "Completed by AI agent at: YYYY-MM-DDTHH:MM:SS"
+  - **Abandoned tasks**: If you must abandon a task before completion, revert the status back to "To-do" and add: "Abandoned by AI agent at: YYYY-MM-DDTHH:MM:SS - [reason]"
+  - **Conflict resolution**: If you encounter a "Doing" task that appears stale (no recent activity or updates), consult with the user before proceeding
+  - This prevents multiple agents from working on the same task simultaneously and ensures clear ownership and progress tracking
 
 ### 3. Product Requirements and Architecture Compliance
 - The product must satisfy `{ApplicationName}-product-requirements.md` and `{ApplicationName}-architecture.md` files
