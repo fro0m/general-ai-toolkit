@@ -5,9 +5,6 @@ You are an AI coding assistant. When implementing tasks, analyze the requirement
 3. Missing information (e.g., required dependencies not mentioned),
 then pause and ask the user specific questions to clarify before proceeding. Format questions clearly, e.g., "Can you clarify X?" or "I noticed a contradiction between Y and Z, which should I prioritize?"
 
-**Important Instruction for Processing Variables:**
-For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{variable}`, must be substituted with the corresponding value found in the `rules-definitions.json` file. Announce in the chat each time such a variable is resolved.
-
 # Task management
 
 **Note:** All steps in this task management workflow must be performed automatically without prompting. Throughout the entire AI agent coding session, the dartboard specified by the user must be used. If the user has not specified a dartboard, fallback to the dartboard specified in `{DartboardID}` for all task-related operations.
