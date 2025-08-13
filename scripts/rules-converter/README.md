@@ -58,7 +58,7 @@ After installation, you can run the script using `poetry run`.
 poetry run rules-converter path/to/project
 ```
 
-This will look for `rules-definitions.json` in the same directory as `raw_rules_template/` for variable substitution.
+This will look for `rules_definitions.json` in the same directory as `raw-rules-template/` for variable substitution.
 
 ### Specify a custom configuration file:
 

@@ -65,12 +65,12 @@ def load_rules_description_json(json_path: str) -> Dict[str, Any]:
 def process_stage1_template_substitution(raw_rules_dir: str, rules_json_path: str, cooked_rules_dir: str) -> None:
     """
     Stage 1: Template Variable Substitution
-    Process all template files in raw_rules_template directory and substitute variables.
+    Process all template files in raw-rules-template directory and substitute variables.
     
     Args:
-        raw_rules_dir: Path to raw_rules_template directory
+        raw_rules_dir: Path to raw-rules-template directory
         rules_json_path: Path to rules-description.json file
-        cooked_rules_dir: Path to output cooked_rules_template directory
+        cooked_rules_dir: Path to output cooked-rules-template directory
         
     Raises:
         ValueError: If any variables are missing from configuration
@@ -209,10 +209,10 @@ def validate_file_path(path: str, base_dir: Optional[str] = None) -> Tuple[bool,
 def process_stage2_path_validation(cooked_rules_dir: str) -> List[str]:
     """
     Stage 2: Path and File Validation
-    Parse all files in cooked_rules_template and validate file paths and references.
+    Parse all files in cooked-rules-template and validate file paths and references.
     
     Args:
-        cooked_rules_dir: Path to cooked_rules_template directory
+        cooked_rules_dir: Path to cooked-rules-template directory
         
     Returns:
         List of validation error messages (empty if all paths are valid)
@@ -798,7 +798,7 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
     Also copies non-template files to the output directory.
     
     Args:
-        input_dir_str: Directory containing processed template files (cooked_rules_template).
+        input_dir_str: Directory containing processed template files (cooked-rules-template).
         output_dir_str: Directory to save output files.
         
     Returns:

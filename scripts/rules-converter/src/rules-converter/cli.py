@@ -24,9 +24,9 @@ def main(source_directory, rules_description_json, output_dir):
     """
     Convert rules template files through a 4-stage processing pipeline.
     
-    SOURCE_DIRECTORY must contain a 'raw_rules_template/' subdirectory with template files containing {variable} placeholders.
+    SOURCE_DIRECTORY must contain a 'raw-rules-template/' subdirectory with template files containing {variable} placeholders.
     
-    RULES_DESCRIPTION_JSON is an optional JSON file containing variable definitions for template substitution. If not provided, defaults to 'rules-definitions.json' in the same directory as 'raw_rules_template/'.
+    RULES_DESCRIPTION_JSON is an optional JSON file containing variable definitions for template substitution. If not provided, defaults to 'rules_definitions.json' in the same directory as 'raw-rules-template/'.
     
     Processing Stages:
     1. Template Variable Substitution - Replace {variable} placeholders with values from JSON
@@ -36,7 +36,7 @@ def main(source_directory, rules_description_json, output_dir):
     
     Examples:
     
-        # Basic usage with default configuration (rules-definitions.json) and output directory
+        # Basic usage with default configuration (rules_definitions.json) and output directory
         rules-converter /path/to/project
         
         # With explicit configuration file
@@ -47,30 +47,26 @@ def main(source_directory, rules_description_json, output_dir):
     """
     source_directory = os.path.abspath(source_directory)
     
-    # Validate source directory contains raw_rules_template subdirectory
-    raw_rules_dir = os.path.join(source_directory, 'raw_rules_template')
+    # Validate source directory contains raw-rules-template subdirectory
+    raw_rules_dir = os.path.join(source_directory, 'raw-rules-template')
     if not os.path.isdir(raw_rules_dir):
-        click.echo(f"Error: Source directory must contain 'raw_rules_template/' subdirectory", err=True)
+        click.echo(f"Error: Source directory must contain 'raw-rules-template/' subdirectory", err=True)
         click.echo(f"Expected: {raw_rules_dir}", err=True)
         sys.exit(1)
     
     # Handle default JSON configuration file
     if rules_description_json is None:
-        # Default to rules-definitions.json in the same directory as raw_rules_template
-        default_json_path = os.path.join(source_directory, 'rules-definitions.json')
+        # Default to rules_definitions.json in the same directory as raw-rules-template
+        default_json_path = os.path.join(source_directory, 'rules_definitions.json')
         if os.path.exists(default_json_path):
             rules_description_json = default_json_path
             click.echo(f"Using default configuration: {rules_description_json}")
         else:
             click.echo(f"Error: No configuration file specified and default not found: {default_json_path}", err=True)
-            click.echo("Please provide a rules-description.json file as argument or place 'rules-definitions.json' in the source directory.", err=True)
+            click.echo("Please provide a rules-description.json file as argument or place 'rules_definitions.json' in the source directory.", err=True)
             sys.exit(1)
     else:
         rules_description_json = os.path.abspath(rules_description_json)
-    if not os.path.isdir(raw_rules_dir):
-        click.echo(f"Error: Source directory must contain 'raw_rules_template/' subdirectory", err=True)
-        click.echo(f"Expected: {raw_rules_dir}", err=True)
-        sys.exit(1)
     
     # Determine output directory
     if output_dir:
@@ -79,7 +75,7 @@ def main(source_directory, rules_description_json, output_dir):
         # Default: source_directory/../copy-content-to-prj-directory/
         output_dir = os.path.join(os.path.dirname(source_directory), 'copy-content-to-prj-directory')
     
-    # Stage paths - cooked_rules_template should be sibling to raw_rules_template
+    # Stage paths - cooked_rules_template should be sibling to raw-rules-template
     cooked_rules_dir = os.path.join(source_directory, 'cooked_rules_template')
     
     try:

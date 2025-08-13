@@ -38,7 +38,7 @@
 The Rules Converter follows a 4-stage processing pipeline:
 
 ### Stage 1: Template Variable Substitution
-*   **Input**: `raw_rules_template/` directory containing template files with `{variable}` placeholders
+*   **Input**: `raw-rules-template/` directory containing template files with `{variable}` placeholders
 *   **Process**: 
     *   Accept path to `rules-description.json` file containing variable definitions
     *   Parse all template files and substitute `{variable}` placeholders with values from JSON
@@ -61,9 +61,9 @@ The Rules Converter follows a 4-stage processing pipeline:
 *   **Output**: Multiple format-specific directories with converted rules
 
 ### Stage 4: Deployment
-*   **Input**: Source directory containing `raw_rules_template/`
+*   **Input**: Source directory containing `raw-rules-template/`
 *   **Process**: 
-    *   If no output directory specified, create converted rules in `raw_rules_template/../copy-content-to-prj-directory/`
+    *   If no output directory specified, create converted rules in `raw-rules-template/../copy-content-to-prj-directory/`
     *   Place files in appropriate directory structure for each target tool
 *   **Output**: Ready-to-deploy rule files in correct locations
 
@@ -91,8 +91,8 @@ The Rules Converter follows a 4-stage processing pipeline:
     *   Copy non-template files to output directories
 
 ### Command Line Interface
-*   Accept source directory path (containing `raw_rules_template/`)
-*   Accept path to `rules-description.json` configuration file (optional - defaults to `rules-definitions.json` in same directory as `raw_rules_template/`)
+*   Accept source directory path (containing `raw-rules-template/`)
+*   Accept path to `rules-description.json` configuration file (optional - defaults to `rules_definitions.json` in same directory as `raw-rules-template/`)
 *   Optional output directory specification
 *   Help and usage information
 ### Feature Prioritization (MoSCoW)
@@ -122,8 +122,8 @@ The Rules Converter follows a 4-stage processing pipeline:
 ## 7. Input/Output Specifications
 
 ### Input Files and Directories
-*   **Source Directory**: Contains `raw_rules_template/` subdirectory with template files
-*   **rules-description.json**: JSON configuration file with variable definitions (optional - defaults to `rules-definitions.json` in same directory as `raw_rules_template/`)
+*   **Source Directory**: Contains `raw-rules-template/` subdirectory with template files
+*   **rules-description.json**: JSON configuration file with variable definitions (optional - defaults to `rules_definitions.json` in same directory as `raw-rules-template/`)
     ```json
     {
       "project_name": "MyProject",
@@ -137,8 +137,8 @@ The Rules Converter follows a 4-stage processing pipeline:
 ### Output Directory Structure
 ```
 source_directory/
-├── raw_rules_template/             # Input templates
-└── cooked_rules_template/          # Stage 1 output (sibling to raw_rules_template)
+├── raw-rules-template/             # Input templates
+└── cooked_rules_template/          # Stage 1 output (sibling to raw-rules-template)
 
 copy-content-to-prj-directory/
 ├── .github/instructions/           # VS Code format
@@ -184,7 +184,7 @@ Note: Stage 2 validation errors are reported to standard output, not saved to a 
     *   Users have Python and Poetry (or pip) installed
     *   The `rules-description.json` file is well-formed JSON
     *   Template files use `{variable}` syntax for placeholders
-    *   Source directory contains a `raw_rules_template/` subdirectory
+    *   Source directory contains a `raw-rules-template/` subdirectory
     *   Users have appropriate file system permissions for read/write operations
 *   **Constraints**:
     *   The tool is a command-line application only
@@ -206,7 +206,7 @@ Note: Stage 2 validation errors are reported to standard output, not saved to a 
 
 ### Command Line Interface
 ```bash
-# Basic usage with default configuration file (rules-definitions.json) and output directory
+# Basic usage with default configuration file (rules_definitions.json) and output directory
 ./rules-converter.py /path/to/source/directory
 
 # Basic usage with explicit configuration file and default output directory
