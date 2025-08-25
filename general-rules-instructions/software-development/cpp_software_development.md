@@ -1,6 +1,12 @@
 # C++ Software Development Guidelines
 
+
+## Disallowed Language Features
+
+The use of `const_cast` is **not allowed** in any C++ code. This rule is enforced to maintain const-correctness and prevent unsafe modifications of objects declared as `const`. If you encounter a situation where you believe `const_cast` is necessary, refactor the code to avoid this requirement or consult with a senior developer for an alternative approach.
+
 ## Include Path Management
+
 
 Always use direct `#include` paths instead of relative paths with `../`. This improves code maintainability and reduces coupling between directory structures.
 
