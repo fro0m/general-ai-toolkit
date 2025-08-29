@@ -16,9 +16,9 @@ from .converter import (
 @click.argument('source_directory', type=click.Path(exists=True))
 @click.argument('rules_description_json', type=click.Path(exists=True), required=False)
 @click.option(
-    '--output-dir', '-o', 
-    type=click.Path(), 
-    help='Directory to save converted files. If not specified, files are saved in source_directory/../copy-content-to-prj-directory/'
+    '--output-dir', '-o',
+    type=click.Path(),
+    help='Directory to save converted files. If not specified, files are saved in source_directory/copy-content-to-prj-directory/'
 )
 def main(source_directory, rules_description_json, output_dir):
     """
@@ -72,8 +72,7 @@ def main(source_directory, rules_description_json, output_dir):
     if output_dir:
         output_dir = os.path.abspath(output_dir)
     else:
-        # Default: source_directory/../copy-content-to-prj-directory/
-        output_dir = os.path.join(os.path.dirname(source_directory), 'copy-content-to-prj-directory')
+        output_dir = os.path.join(source_directory, 'copy-content-to-prj-directory')
     
     # Stage paths - cooked_rules_template should be sibling to raw-rules-template
     cooked_rules_dir = os.path.join(source_directory, 'cooked_rules_template')

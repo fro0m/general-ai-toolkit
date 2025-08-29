@@ -11,22 +11,24 @@ from typing import Dict, Any, List, Optional, Tuple
 def substitute_template_variables(content: str, variables: Dict[str, Any]) -> Tuple[str, List[str]]:
     """
     Substitute {variable} placeholders in content with values from variables dict.
-    
+
     Args:
         content: Text content with {variable} placeholders
         variables: Dictionary of variable name -> value mappings
-        
+
     Returns:
         Tuple of (substituted_content, list_of_missing_variables)
     """
-    # Find all {variable} patterns in the content
-    variable_pattern = re.compile(r'\{([^}]+)\}')
+    # Find all {variable} patterns in the content, but exclude JSON-like structures
+    # This pattern looks for {variable} where variable doesn't contain quotes or colons
+    # to avoid matching JSON object syntax like {"key": "value"}
+    variable_pattern = re.compile(r'\{([^}"\':\s][^}]*)\}')
     found_variables = variable_pattern.findall(content)
-    
+
     # Track missing variables
     missing_variables = []
     substituted_content = content
-    
+
     for var_name in found_variables:
         if var_name in variables:
             # Substitute the variable with its value
@@ -34,7 +36,7 @@ def substitute_template_variables(content: str, variables: Dict[str, Any]) -> Tu
             substituted_content = substituted_content.replace(placeholder, str(variables[var_name]))
         else:
             missing_variables.append(var_name)
-    
+
     return substituted_content, missing_variables
 
 
