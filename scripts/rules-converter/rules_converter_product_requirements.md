@@ -83,6 +83,7 @@ The Rules Converter follows a 4-stage processing pipeline:
     *   Convert to Roo Code rules files (`.md`)
     *   Convert to Windsurf rules files (`.md` with YAML frontmatter)
     *   Convert to Cline rules files (`.md`)
+    *   Convert to Kilo Code rules files (`.md`)
     *   Convert to Gemini CLI rules files (`.md`)
 *   **Directory Management**:
     *   Process entire directory trees recursively
@@ -142,9 +143,10 @@ source_directory/
 
 copy-content-to-prj-directory/
 ├── .github/instructions/           # VS Code format
-├── .roo/rules/                     # Roo Code format  
+├── .roo/rules/                     # Roo Code format
 ├── .windsurf/rules/               # Windsurf format
 ├── .clinerules/                   # Cline format
+├── .kilocode/rules/               # Kilo Code format
 └── .gemini/                       # Gemini CLI format
 ```
 

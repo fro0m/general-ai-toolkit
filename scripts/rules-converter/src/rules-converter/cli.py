@@ -31,7 +31,7 @@ def main(source_directory, rules_description_json, output_dir):
     Processing Stages:
     1. Template Variable Substitution - Replace {variable} placeholders with values from JSON
     2. Path and File Validation - Validate all file paths and references in processed rules
-    3. Format Conversion - Convert to VS Code, Roo Code, Windsurf, Cline, and Gemini formats  
+    3. Format Conversion - Convert to VS Code, Roo Code, Windsurf, Cline, Gemini, and Kilo Code formats
     4. Deployment - Place files in correct directory structure for each tool
     
     Examples:
@@ -102,10 +102,10 @@ def main(source_directory, rules_description_json, output_dir):
         
         # Stage 3 & 4: Format Conversion and Deployment
         click.echo("\nStage 3 & 4: Format Conversion and Deployment...")
-        vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, gemini_cli_converted_files, copied_files = convert_directory(cooked_rules_dir, output_dir)
-        
+        vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, gemini_cli_converted_files, kilo_code_converted_files, copied_files = convert_directory(cooked_rules_dir, output_dir)
+
         total_processed = len(vscode_converted_files) + len(copied_files)
-        
+
         click.echo(f"✓ Processed {total_processed} files")
         click.echo(f"✓ Converted {len(vscode_converted_files)} template files")
         click.echo(f"  - VS Code instructions: {len(vscode_converted_files)} files")
@@ -113,6 +113,7 @@ def main(source_directory, rules_description_json, output_dir):
         click.echo(f"  - Windsurf rules: {len(windsurf_converted_files)} files")
         click.echo(f"  - Cline rules: {len(cline_converted_files)} files")
         click.echo(f"  - Gemini CLI rules: {len(gemini_cli_converted_files)} files")
+        click.echo(f"  - Kilo Code rules: {len(kilo_code_converted_files)} files")
         click.echo(f"✓ Copied {len(copied_files)} other files")
         
         click.echo(f"\n✅ Rules conversion completed successfully!")

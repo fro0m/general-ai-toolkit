@@ -667,41 +667,133 @@ def convert_to_gemini_cli_instructions(mdc_content: str) -> str:
     """
     Convert MDC content to Gemini CLI instructions format.
     Gemini CLI instructions are plain text/markdown files without frontmatter.
-    
+
     Args:
         mdc_content: Content from the MDC file
-        
+
     Returns:
         Content formatted for Gemini CLI instruction files
     """
     return convert_to_roo_instructions(mdc_content)
 
 
+def convert_to_kilo_code_instructions(mdc_content: str) -> str:
+    """
+    Convert MDC content to Kilo Code instructions format.
+    Kilo Code instructions are plain markdown files without frontmatter, similar to Roo Code format.
+
+    Args:
+        mdc_content: Content from the MDC file
+
+    Returns:
+        Content formatted for Kilo Code instruction files
+    """
+    extracted_description: Optional[str] = None
+    main_body_content_str: str = ""
+
+    try:
+        # Attempt to parse as JSON first
+        data = json.loads(mdc_content)
+        extracted_description = data.get("description")
+        main_body_content_str = data.get("content", "")
+    except json.JSONDecodeError:
+        # JSON parsing failed, attempt to parse as YAML-like with frontmatter
+        lines = mdc_content.splitlines()
+
+        if lines and lines[0] == "---":
+            frontmatter_lines: List[str] = []
+            body_lines: List[str] = []
+            in_frontmatter = True
+
+            # Start scanning from the line *after* the first '---'
+            for i in range(1, len(lines)):
+                if in_frontmatter and lines[i] == "---":
+                    in_frontmatter = False # Closing '---' found
+                    continue # Don't add this '---' to body or frontmatter
+
+                if in_frontmatter:
+                    frontmatter_lines.append(lines[i])
+                else:
+                    body_lines.append(lines[i])
+
+            if in_frontmatter:
+                # Closing '---' was not found, but we started with '---'.
+                # This is malformed. Treat everything after the first '---' as body for robustness.
+                main_body_content_str = "\n".join(frontmatter_lines)
+            else:
+                  # Properly closed frontmatter was found, parse it
+                for fm_line in frontmatter_lines:
+                    if ":" in fm_line:
+                        key, val = fm_line.split(":", 1)
+                        key = key.strip()
+                        val = val.strip() # Raw value
+                        if key == "description":
+                            # Basic unquoting for description
+                            if (val.startswith("'") and val.endswith("'")) or \
+                               (val.startswith('"') and val.endswith('"')):
+                                extracted_description = val[1:-1]
+                            else:
+                                extracted_description = val
+                main_body_content_str = "\n".join(body_lines)
+
+        else:
+            # No leading '---', so assume the entire content is the main body
+            main_body_content_str = mdc_content
+
+    # Construct the output for Kilo Code format (plain text/markdown)
+    output_parts: List[str] = []
+
+    # Add description as a header if available
+    if extracted_description:
+        output_parts.append(f"# {extracted_description}")
+        output_parts.append("")  # Add blank line after header
+
+    # Add the main body content
+    output_parts.append(main_body_content_str.strip())
+
+    return "\n".join(output_parts)
+
+
 def save_gemini_cli_instructions(instructions_content: str, output_path: str) -> None:
     """
     Save Gemini CLI instructions to a file.
-    
+
     Args:
         instructions_content: Content for the instructions file
         output_path: Path to save the instructions file
     """
     # Create parent directories if they don't exist
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
+
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(instructions_content)
 
 
-def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> Tuple[str, str, str, str, str]:
+def save_kilo_code_instructions(instructions_content: str, output_path: str) -> None:
+    """
+    Save Kilo Code instructions to a file.
+
+    Args:
+        instructions_content: Content for the instructions file
+        output_path: Path to save the instructions file
+    """
+    # Create parent directories if they don't exist
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(instructions_content)
+
+
+def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> Tuple[str, str, str, str, str, str]:
     """
     Convert a single template file to all target formats.
-    
+
     Args:
         input_path_str: Path to the input template file
         output_dir_str: Directory to save the output files (optional)
-        
+
     Returns:
-        Tuple of (VS Code instructions file path, Roo Code instructions file path, Windsurf instructions file path, Cline instructions file path, Gemini CLI instructions file path)
+        Tuple of (VS Code instructions file path, Roo Code instructions file path, Windsurf instructions file path, Cline instructions file path, Gemini CLI instructions file path, Kilo Code instructions file path)
     """
     input_path_abs = os.path.abspath(input_path_str)
     input_file_name = os.path.basename(input_path_abs)
@@ -714,6 +806,7 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         windsurf_instructions_content = convert_to_windsurf_instructions(mdc_content)
         cline_instructions_content = convert_to_cline_instructions(mdc_content)
         gemini_cli_instructions_content = convert_to_gemini_cli_instructions(mdc_content)
+        kilo_code_instructions_content = convert_to_kilo_code_instructions(mdc_content)
         
         # Determine base output directory
         if output_dir_str:
@@ -751,12 +844,18 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         gemini_cli_output_filename = os.path.splitext(input_file_name)[0] + ".md"
         gemini_cli_output_path = os.path.join(gemini_rules_dir, gemini_cli_output_filename)
         save_gemini_cli_instructions(gemini_cli_instructions_content, gemini_cli_output_path)
-        
+
         relative_path_for_import = os.path.relpath(gemini_cli_output_path, gemini_rules_dir)
         with open(gemini_master_file_path, 'w', encoding='utf-8') as f:
             f.write(f"# Gemini CLI Rules\n\n@{relative_path_for_import}\n")
 
-        return vscode_output_path, roo_output_path, windsurf_output_path, cline_output_path, gemini_master_file_path
+        # Kilo Code output structure: base_for_output/.kilocode/rules/original_filename.md
+        kilo_code_rules_dir = os.path.join(base_for_output, ".kilocode", "rules")
+        kilo_code_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        kilo_code_output_path = os.path.join(kilo_code_rules_dir, kilo_code_output_filename)
+        save_kilo_code_instructions(kilo_code_instructions_content, kilo_code_output_path)
+
+        return vscode_output_path, roo_output_path, windsurf_output_path, cline_output_path, gemini_master_file_path, kilo_code_output_path
     except Exception as e:
         print(f"Error converting {input_path_abs}: {str(e)}")
         raise
@@ -790,19 +889,19 @@ def copy_file(input_path: str, output_dir: str) -> str:
     return output_path
 
 
-def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) -> Tuple[List[str], List[str], List[str], List[str], List[str], List[str]]:
+def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) -> Tuple[List[str], List[str], List[str], List[str], List[str], List[str], List[str]]:
     """
     Convert all template files in a directory and its subdirectories.
     Input directory should contain processed template files (from Stage 1).
-    Converts files to all target formats (VS Code, Roo Code, Windsurf, Cline, Gemini).
+    Converts files to all target formats (VS Code, Roo Code, Windsurf, Cline, Gemini, Kilo Code).
     Also copies non-template files to the output directory.
-    
+
     Args:
         input_dir_str: Directory containing processed template files (cooked-rules-template).
         output_dir_str: Directory to save output files.
-        
+
     Returns:
-        Tuple containing (list of VS Code converted file paths, list of Roo Code converted file paths, list of Windsurf converted file paths, list of Cline converted file paths, list of Gemini CLI converted file paths, list of copied file paths)
+        Tuple containing (list of VS Code converted file paths, list of Roo Code converted file paths, list of Windsurf converted file paths, list of Cline converted file paths, list of Gemini CLI converted file paths, list of Kilo Code converted file paths, list of copied file paths)
     """
     input_dir_abs = os.path.abspath(input_dir_str)
     vscode_converted_files = []
@@ -810,18 +909,19 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
     windsurf_converted_files = []
     cline_converted_files = []
     gemini_cli_converted_files = []
+    kilo_code_converted_files = []
     copied_files = []
 
     if not os.path.isdir(input_dir_abs):
         print(f"Info: Input directory not found at {input_dir_abs}. No files will be converted from this path.")
-        return [], [], [], [], [], []
+        return [], [], [], [], [], [], []
 
     # Use provided output directory or the parent of input directory
     if output_dir_str:
         base_for_output = os.path.abspath(output_dir_str)
     else:
         base_for_output = os.path.dirname(input_dir_abs)
-    
+
     gemini_rules_dir = os.path.join(base_for_output, ".gemini")
     gemini_master_file_path = os.path.join(gemini_rules_dir, "GEMINI.md")
     gemini_master_file_content = ["# Gemini CLI Rules\n\n"]
@@ -829,12 +929,12 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
     for root, _, files in os.walk(input_dir_abs):
         for file in files:
             input_file_path = os.path.join(root, file)
-            
+
             # rel_path is relative to input_dir_abs to preserve structure in output directories
             rel_path_from_input = os.path.relpath(root, input_dir_abs)
             if rel_path_from_input == '.':
                 rel_path_from_input = ''
-                
+
             # Process template files (.mdc files)
             if file.endswith(".mdc"):
                 mdc_content = parse_mdc_file(input_file_path)
@@ -843,7 +943,8 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 windsurf_instructions_content = convert_to_windsurf_instructions(mdc_content)
                 cline_instructions_content = convert_to_cline_instructions(mdc_content)
                 gemini_cli_instructions_content = convert_to_gemini_cli_instructions(mdc_content)
-                
+                kilo_code_instructions_content = convert_to_kilo_code_instructions(mdc_content)
+
                 # Determine output paths maintaining directory structure
                 # VS Code: base_for_output / .github / instructions / rel_path_from_input / filename.instructions.md
                 vscode_output_instructions_subdir = os.path.join(base_for_output, ".github", "instructions", rel_path_from_input)
@@ -851,21 +952,21 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 vscode_output_path = os.path.join(vscode_output_instructions_subdir, vscode_output_filename)
                 save_vscode_instructions(vscode_instructions_content, vscode_output_path)
                 vscode_converted_files.append(vscode_output_path)
-                
+
                 # Roo Code: base_for_output / .roo / rules / rel_path_from_input / filename.md
                 roo_output_rules_subdir = os.path.join(base_for_output, ".roo", "rules", rel_path_from_input)
                 roo_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
                 roo_output_path = os.path.join(roo_output_rules_subdir, roo_output_filename)
                 save_roo_instructions(roo_instructions_content, roo_output_path)
                 roo_converted_files.append(roo_output_path)
-                
+
                 # Windsurf: base_for_output / .windsurf / rules / rel_path_from_input / filename.md
                 windsurf_output_rules_subdir = os.path.join(base_for_output, ".windsurf", "rules", rel_path_from_input)
                 windsurf_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
                 windsurf_output_path = os.path.join(windsurf_output_rules_subdir, windsurf_output_filename)
                 save_windsurf_instructions(windsurf_instructions_content, windsurf_output_path)
                 windsurf_converted_files.append(windsurf_output_path)
-                
+
                 # Cline: base_for_output / .clinerules / rel_path_from_input / filename.md
                 cline_output_rules_subdir = os.path.join(base_for_output, ".clinerules", rel_path_from_input)
                 cline_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
@@ -879,7 +980,14 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 gemini_cli_output_path = os.path.join(gemini_cli_output_rules_subdir, gemini_cli_output_filename)
                 save_gemini_cli_instructions(gemini_cli_instructions_content, gemini_cli_output_path)
                 gemini_cli_converted_files.append(gemini_cli_output_path)
-                
+
+                # Kilo Code: base_for_output / .kilocode / rules / rel_path_from_input / filename.md
+                kilo_code_output_rules_subdir = os.path.join(base_for_output, ".kilocode", "rules", rel_path_from_input)
+                kilo_code_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
+                kilo_code_output_path = os.path.join(kilo_code_output_rules_subdir, kilo_code_output_filename)
+                save_kilo_code_instructions(kilo_code_instructions_content, kilo_code_output_path)
+                kilo_code_converted_files.append(kilo_code_output_path)
+
                 # Add import statement to master file
                 relative_path_for_import = os.path.relpath(gemini_cli_output_path, gemini_rules_dir)
                 gemini_master_file_content.append(f"@{relative_path_for_import}\n")
@@ -896,4 +1004,4 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
         f.write("".join(gemini_master_file_content))
     gemini_cli_converted_files.append(gemini_master_file_path)
 
-    return vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, gemini_cli_converted_files, copied_files
+    return vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, gemini_cli_converted_files, kilo_code_converted_files, copied_files
