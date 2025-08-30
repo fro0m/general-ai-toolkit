@@ -14,8 +14,8 @@
 #
 # PARAMETERS:
 #   target_directory (required): Directory where symbolic links will be created
-#   source_directory (optional): Directory containing files to link
-#                               Default: ./copy-content-to-prj-directory
+#   source_directory (optional): Parent directory containing copy-content-to-prj-directory
+#                               Default: current directory (./copy-content-to-prj-directory)
 #
 # FEATURES:
 #   - Creates symbolic links for all files and directories in source
@@ -47,13 +47,17 @@
 if [ -z "$1" ]; then
   echo "Usage: $0 <target_directory> [source_directory]"
   echo "  target_directory: Directory where symbolic links will be created"
-  echo "  source_directory: Directory containing files to link (default: ./copy-content-to-prj-directory)"
+  echo "  source_directory: Parent directory containing copy-content-to-prj-directory (default: current directory)"
   exit 1
 fi
 
 # Set script parameters
 TARGET_DIR="$1"
-SOURCE_DIR="${2:-./copy-content-to-prj-directory}"
+if [ -n "$2" ]; then
+    SOURCE_DIR="$2/copy-content-to-prj-directory"
+else
+    SOURCE_DIR="./copy-content-to-prj-directory"
+fi
 
 # Validate target directory exists
 if [ ! -d "$TARGET_DIR" ]; then
