@@ -45,4 +45,4 @@ echo "The GEMINI_API_KEY="$KEY""
 echo "The command: gemini -y --proxy="http://127.0.0.1:2080" "$@""
 
 # Run the gemini CLI without specifying the key on the command line
-GEMINI_API_KEY="$KEY" gemini -y --proxy="http://127.0.0.1:2080" "$@"
+GOOGLE_CLOUD_PROJECT="Gemini API" GEMINI_API_KEY="$KEY" gemini -y --proxy="http://127.0.0.1:2080" "$@"
