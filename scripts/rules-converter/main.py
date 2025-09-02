@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
 """
-Rules Converter - Command-line entry point script
+Rules Converter - Alternative command-line entry point script
 
-A multi-stage command-line tool that processes template-based rule files through 
-variable substitution, validation, and format conversion to generate ready-to-use 
+A multi-stage command-line tool that processes template-based rule files through
+variable substitution, validation, and format conversion to generate ready-to-use
 rules for different AI-powered code editors and assistants.
 
+Note: This is an alternative entry point. The recommended way is to use:
+    poetry run rules-converter
+
 Usage:
-    ./rules-converter.py SOURCE_DIRECTORY RULES_DESCRIPTION_JSON [--output OUTPUT_DIR]
+    python main.py
+
+Or if executable:
+    ./main.py
 
 Examples:
-    # Basic usage with default output directory
-    ./rules-converter.py /path/to/project /path/to/rules-description.json
-    
+    # Run the converter (will show help if no arguments provided)
+    python main.py /path/to/project /path/to/rules-description.json
+
     # With custom output directory
-    ./rules-converter.py /path/to/project /path/to/rules-description.json --output /path/to/output
+    python main.py /path/to/project /path/to/rules-description.json --output /path/to/output
 """
 
 import sys
