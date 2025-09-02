@@ -12,8 +12,8 @@ from .converter import (
 )
 
 
-@click.command()
-@click.argument('source_directory', type=click.Path(exists=True))
+@click.command(no_args_is_help=True)
+@click.argument('source_directory', type=click.Path(exists=True), required=False)
 @click.argument('rules_description_json', type=click.Path(exists=True), required=False)
 @click.option(
     '--output-dir', '-o',

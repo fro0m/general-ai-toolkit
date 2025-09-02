@@ -6,4 +6,4 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Run the rules-converter tool through the virtual environment
-"$SCRIPT_DIR/venv/bin/python" -m rules-converter.cli "$@"
+"$SCRIPT_DIR/venv/bin/python" -m rules_converter.cli "$@"
