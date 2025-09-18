@@ -33,7 +33,7 @@ fi
 
 # Push the current branch to the "backup" remote with --force
 echo "Pushing branch $current_branch to backup with --force"
-git -C "$workdir" push --force backup "$current_branch"
+git -C "$workdir" push --force --no-verify backup "$current_branch"
 push_status=$?
 
 # Remove the "backup" remote
