@@ -22,6 +22,7 @@ database found in `/path/to/build/compile_commands.json`.
 Additional options:
 - To specify a custom output file for the report:
   ./cpp-analyze.py /path/to/build /path/to/src --output cpp-analysis-report.txt
+  (Note: relative paths are relative to the source directory, report is created in source directory by default)
 
 - To enable parallel analysis with 4 jobs:
   ./cpp-analyze.py /path/to/build /path/to/src --parallel 4
@@ -688,7 +689,7 @@ Positional Arguments:
 
 Optional Arguments:
   -h, --help                Show this help message and exit.
-  -o, --output FILE         Output file for the consolidated report.
+  -o, --output FILE         Output file for the consolidated report (default: cpp-analysis-report.txt in source directory).
   -j, --parallel N          Number of parallel analysis jobs (default: number of available CPU cores).
   -v, --verbose             Enable verbose logging.
         """,
@@ -705,8 +706,8 @@ Optional Arguments:
     )
     parser.add_argument(
         "--output", "-o",
-        default="cpp-analysis-report.txt",
-        help="Output file for the consolidated report (default: cpp-analysis-report.txt)"
+        default=None,
+        help="Output file for the consolidated report (default: cpp-analysis-report.txt in source directory)"
     )
     parser.add_argument(
         "--parallel", "-j",
@@ -727,9 +728,20 @@ Optional Arguments:
 
     try:
         analyzer = CppAnalyzer(args.build_dir, args.project_root, args.parallel)
-        output_file = analyzer.analyze_all_files(args.output)
+        
+        # If no output file specified, create default in source directory
+        if args.output is None:
+            output_file = os.path.join(args.project_root, "cpp-analysis-report.txt")
+        else:
+            # If output is relative path, make it relative to source directory
+            if not os.path.isabs(args.output):
+                output_file = os.path.join(args.project_root, args.output)
+            else:
+                output_file = args.output
+        
+        result_file = analyzer.analyze_all_files(output_file)
         print(f"\n✅ Comprehensive C++ analysis completed successfully!")
-        print(f"📊 Report saved to: {output_file}")
+        print(f"📊 Report saved to: {result_file}")
         
     except FileNotFoundError as e:
         logging.error(f"File not found: {e}")
