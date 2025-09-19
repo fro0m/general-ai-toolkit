@@ -27,6 +27,9 @@ Additional options:
 - To enable parallel analysis with 4 jobs:
   ./cpp-analyze.py /path/to/build /path/to/src --parallel 4
 
+- To enable verbose output from analysis tools (default is quiet mode for cleaner reports):
+  ./cpp-analyze.py /path/to/build /path/to/src --verbose-tools
+
 Requirements:
 - Python 3.x
 - clangd, clang-tidy, clang-static-analyzer installed and in PATH
@@ -81,9 +84,10 @@ class AnalysisResult:
 class CppAnalyzer:
     """Main C++ static analysis coordinator."""
     
-    def __init__(self, compile_commands_dir: str, project_root: str, parallel_jobs: Optional[int] = None):
+    def __init__(self, compile_commands_dir: str, project_root: str, parallel_jobs: Optional[int] = None, verbose_tools: bool = False):
         self.project_root = project_root
         self.compile_commands_dir = compile_commands_dir
+        self.verbose_tools = verbose_tools
         self.results_lock = threading.Lock()
         self.all_results: List[AnalysisResult] = []
         
@@ -230,7 +234,8 @@ class CppAnalyzer:
         
         try:
             command = ["clangd", f"--compile-commands-dir={self.compile_commands_dir}", "--clang-tidy", f"--check={file_path}", f"-j={self.single_tool_threads}"]
-            logging.info(f"Running command: {' '.join(command)}")
+            if self.verbose_tools:
+                logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
                 command,
                 capture_output=True,
@@ -257,7 +262,8 @@ class CppAnalyzer:
             
             command = ["clang", "--analyze"] + compile_args + [file_path, 
                  "-o", str(temp_dir), "-Xanalyzer", "-analyzer-output=text"]
-            logging.info(f"Running command: {' '.join(command)}")
+            if self.verbose_tools:
+                logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
                 command,
                 capture_output=True,
@@ -355,12 +361,18 @@ class CppAnalyzer:
                 "--enable=all",
                 "--inconclusive",
                 "--xml",
-                "--verbose",
                 "--suppress=missingIncludeSystem",
                 "--suppress=unmatchedSuppression"
             ]
             
-            logging.info(f"Running command: {' '.join(command)}")
+            # Add verbose or quiet flag based on user preference
+            if self.verbose_tools:
+                command.append("--verbose")
+            else:
+                command.append("--quiet")
+            
+            if self.verbose_tools:
+                logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
                 command,
                 capture_output=True,
@@ -389,9 +401,16 @@ class CppAnalyzer:
             
             # ikos-scan is a wrapper around the build command.
             # It creates output.db in the current working directory.
-            command = ["ikos-scan"] + build_command
+            command = ["ikos-scan"]
             
-            logging.info(f"Running command: {' '.join(command)}")
+            # Add quiet flag based on user preference
+            if not self.verbose_tools:
+                command.append("-q")
+            
+            command.extend(build_command)
+            
+            if self.verbose_tools:
+                logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
                 command,
                 capture_output=True,
@@ -413,8 +432,19 @@ class CppAnalyzer:
             return AnalysisResult('flawfinder', file_path, '', 'Flawfinder not available')
         
         try:
-            command = ["flawfinder", "--columns", "--context", file_path]
-            logging.info(f"Running command: {' '.join(command)}")
+            command = ["flawfinder", "--columns", "--context"]
+            
+            # Add verbose or quiet flags based on user preference
+            if self.verbose_tools:
+                # Keep default verbose behavior
+                pass
+            else:
+                command.extend(["--quiet", "--dataonly"])
+            
+            command.append(file_path)
+            
+            if self.verbose_tools:
+                logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
                 command,
                 capture_output=True,
@@ -438,11 +468,17 @@ class CppAnalyzer:
             temp_compile_db_path = self._create_sanitized_compile_commands('xunused')
             
             command = ["xunused", "-p", str(temp_compile_db_path), f"--threads={self.single_tool_threads}"]
+            
+            # Add quiet flags based on user preference
+            if not self.verbose_tools:
+                command.append("--no-warn")
+            
             source_files = self.get_source_files()
             if source_files:
                 command.extend(source_files)
 
-            logging.info(f"Running command: {' '.join(command)}")
+            if self.verbose_tools:
+                logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
                 command,
                 capture_output=True,
@@ -485,7 +521,8 @@ class CppAnalyzer:
             output_dir.mkdir(parents=True, exist_ok=True)
 
             command = ["scan-build", "--status-bugs", "-o", str(output_dir)] + build_command
-            logging.info(f"Running command: {' '.join(command)}")
+            if self.verbose_tools:
+                logging.info(f"Running command: {' '.join(command)}")
             result = subprocess.run(
                 command,
                 capture_output=True,
@@ -534,6 +571,85 @@ class CppAnalyzer:
         logging.info(f"Filtered to {len(filtered_files)} C++ files within {self.project_root}")
         
         return list(set(filtered_files))
+
+    def _filter_output(self, output: str, tool_name: str) -> str:
+        """Filter out common status/progress messages from tool output."""
+        if not output.strip():
+            return output
+            
+        lines = output.split('\n')
+        filtered_lines = []
+        
+        for line in lines:
+            line_lower = line.lower().strip()
+            
+            # Skip logging messages from our script
+            if any(pattern in line for pattern in [
+                '[INFO] Running command:',
+                '[DEBUG] Running command:',
+                '[WARNING] Running command:',
+                '[ERROR] Running command:'
+            ]):
+                continue
+            
+            # Skip common status/progress messages
+            if any(pattern in line_lower for pattern in [
+                'checking',
+                'processing',
+                'scanning',
+                'analyzed',
+                'files checked',
+                'done processing',
+                'cppcheck: progress',
+                'flawfinder version',
+                'examining',
+                'hits = ',
+                'time elapsed:',
+                'lines of code:',
+                'total time:',
+                'scan complete',
+                'starting analysis',
+                'analysis complete',
+                'build successful',
+                'nothing to be done',
+                'make: entering directory',
+                'make: leaving directory',
+                'compilation terminated',
+                'no errors detected',
+                'no warnings detected'
+            ]):
+                continue
+                
+            # Keep lines that likely contain actual issues
+            if any(pattern in line_lower for pattern in [
+                'error:',
+                'warning:',
+                'note:',
+                'fatal:',
+                'undefined',
+                'unused',
+                'leak',
+                'vulnerability',
+                'security',
+                'bug',
+                'issue',
+                'violation',
+                'suspicious',
+                'potential',
+                'dangerous',
+                'deprecated',
+                'missing',
+                'invalid',
+                'unreachable',
+                'uninitialized'
+            ]) or line.strip():
+                # Also keep non-empty lines that don't match status patterns
+                if not any(status in line_lower for status in [
+                    'progress:', 'processed:', 'checking:', 'scanning:', 'elapsed:'
+                ]):
+                    filtered_lines.append(line)
+        
+        return '\n'.join(filtered_lines).strip()
 
     def analyze_all_files(self, output_file: str = "cpp-analysis-report.txt") -> str:
         """Analyze all files and generate consolidated report."""
@@ -652,9 +768,18 @@ class CppAnalyzer:
                             if result.error:
                                 report.write(f"**Error:** {result.error}\n\n")
                             else:
-                                report.write("```\n")
-                                report.write(result.output.strip())
-                                report.write("\n```\n\n")
+                                # Filter output based on verbose_tools setting
+                                if self.verbose_tools:
+                                    filtered_output = result.output.strip()
+                                else:
+                                    filtered_output = self._filter_output(result.output, result.tool_name)
+                                
+                                if filtered_output:
+                                    report.write("```\n")
+                                    report.write(filtered_output)
+                                    report.write("\n```\n\n")
+                                else:
+                                    report.write("*No specific issues detected (filtered output)*\n\n")
                     
                     report.write("---\n\n")
 
@@ -692,6 +817,7 @@ Optional Arguments:
   -o, --output FILE         Output file for the consolidated report (default: cpp-analysis-report.txt in source directory).
   -j, --parallel N          Number of parallel analysis jobs (default: number of available CPU cores).
   -v, --verbose             Enable verbose logging.
+  --verbose-tools           Enable verbose output from analysis tools (default: quiet mode for cleaner reports).
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -720,6 +846,11 @@ Optional Arguments:
         action="store_true",
         help="Enable verbose logging"
     )
+    parser.add_argument(
+        "--verbose-tools",
+        action="store_true",
+        help="Enable verbose output from analysis tools (default: quiet mode for cleaner reports)"
+    )
 
     args = parser.parse_args()
     
@@ -727,7 +858,7 @@ Optional Arguments:
         logging.getLogger().setLevel(logging.DEBUG)
 
     try:
-        analyzer = CppAnalyzer(args.build_dir, args.project_root, args.parallel)
+        analyzer = CppAnalyzer(args.build_dir, args.project_root, args.parallel, args.verbose_tools)
         
         # If no output file specified, create default in source directory
         if args.output is None:
