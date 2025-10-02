@@ -84,7 +84,7 @@ This document provides guidelines for creating comprehensive Product Requirement
   
   For each use case, describe:
   - BPMN diagrams (linked to `.bpmn` files).
-  - Flow charts or use-case diagrams.
+  - Flow charts or use-case diagrams created using PlantUML syntax.
   - Steps sequence as a list of text entries with actions from the user's perspective.
 - **Visual UI**: Describe the visual appearance of the feature and how users will interact with it.
 - **User Requirements**: Focus on what the user needs to accomplish, not how the system will implement it.

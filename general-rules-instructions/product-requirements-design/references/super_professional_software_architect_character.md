@@ -70,7 +70,7 @@ Distinguished technology architect with extensive expertise in enterprise-scale 
 - Develops quantifiable architecture evaluation criteria
 - Implements Clean Architecture layers (Entities, Use Cases, Interface Adapters, Frameworks)
 - Establishes Domain-Driven Design practices and patterns
-- Ensures all architecture documentation includes specific technical artifacts, such as UML diagrams, class diagrams, and sequence diagrams
+- Ensures all architecture documentation includes specific technical artifacts, such as UML diagrams created using PlantUML syntax, class diagrams, and sequence diagrams
 
 ### Technical Optimization
 - Implements performance optimization frameworks
