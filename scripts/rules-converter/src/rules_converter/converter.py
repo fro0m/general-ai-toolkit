@@ -679,6 +679,35 @@ def convert_to_gemini_cli_instructions(mdc_content: str) -> str:
     return convert_to_roo_instructions(mdc_content)
 
 
+def convert_to_antigravity_instructions(mdc_content: str) -> str:
+    """
+    Convert MDC content to Google Antigravity instructions format.
+    Antigravity instructions are plain text/markdown files without frontmatter,
+    stored in .agent/rules/ directory.
+
+    Args:
+        mdc_content: Content from the MDC file
+
+    Returns:
+        Content formatted for Google Antigravity instruction files
+    """
+    return convert_to_roo_instructions(mdc_content)
+
+
+def save_antigravity_instructions(instructions_content: str, output_path: str) -> None:
+    """
+    Save Google Antigravity instructions to a file.
+
+    Args:
+        instructions_content: Content for the instructions file
+        output_path: Path to save the instructions file
+    """
+    # Create parent directories if they don't exist
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(instructions_content)
+
 def convert_to_kilo_code_instructions(mdc_content: str) -> str:
     """
     Convert MDC content to Kilo Code instructions format.
@@ -786,7 +815,7 @@ def save_kilo_code_instructions(instructions_content: str, output_path: str) -> 
         f.write(instructions_content)
 
 
-def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> Tuple[str, str, str, str, str, str]:
+def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> Tuple[str, str, str, str, str, str, str]:
     """
     Convert a single template file to all target formats.
 
@@ -795,7 +824,7 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         output_dir_str: Directory to save the output files (optional)
 
     Returns:
-        Tuple of (VS Code instructions file path, Roo Code instructions file path, Windsurf instructions file path, Cline instructions file path, Gemini CLI instructions file path, Kilo Code instructions file path)
+        Tuple of (VS Code instructions file path, Roo Code instructions file path, Windsurf instructions file path, Cline instructions file path, Gemini CLI instructions file path, Kilo Code instructions file path, Antigravity instructions file path)
     """
     input_path_abs = os.path.abspath(input_path_str)
     input_file_name = os.path.basename(input_path_abs)
@@ -809,6 +838,7 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         cline_instructions_content = convert_to_cline_instructions(mdc_content)
         gemini_cli_instructions_content = convert_to_gemini_cli_instructions(mdc_content)
         kilo_code_instructions_content = convert_to_kilo_code_instructions(mdc_content)
+        antigravity_instructions_content = convert_to_antigravity_instructions(mdc_content)
         
         # Determine base output directory
         if output_dir_str:
@@ -857,7 +887,13 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         kilo_code_output_path = os.path.join(kilo_code_rules_dir, kilo_code_output_filename)
         save_kilo_code_instructions(kilo_code_instructions_content, kilo_code_output_path)
 
-        return vscode_output_path, roo_output_path, windsurf_output_path, cline_output_path, gemini_master_file_path, kilo_code_output_path
+        # Google Antigravity output structure: base_for_output/.agent/rules/original_filename.md
+        antigravity_rules_dir = os.path.join(base_for_output, ".agent", "rules")
+        antigravity_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        antigravity_output_path = os.path.join(antigravity_rules_dir, antigravity_output_filename)
+        save_antigravity_instructions(antigravity_instructions_content, antigravity_output_path)
+
+        return vscode_output_path, roo_output_path, windsurf_output_path, cline_output_path, gemini_master_file_path, kilo_code_output_path, antigravity_output_path
     except Exception as e:
         print(f"Error converting {input_path_abs}: {str(e)}")
         raise
@@ -891,11 +927,11 @@ def copy_file(input_path: str, output_dir: str) -> str:
     return output_path
 
 
-def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) -> Tuple[List[str], List[str], List[str], List[str], List[str], List[str], List[str]]:
+def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) -> Tuple[List[str], List[str], List[str], List[str], List[str], List[str], List[str], List[str]]:
     """
     Convert all template files in a directory and its subdirectories.
     Input directory should contain processed template files (from Stage 1).
-    Converts files to all target formats (VS Code, Roo Code, Windsurf, Cline, Gemini, Kilo Code).
+    Converts files to all target formats (VS Code, Roo Code, Windsurf, Cline, Gemini, Kilo Code, Antigravity).
     Also copies non-template files to the output directory.
 
     Args:
@@ -903,7 +939,7 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
         output_dir_str: Directory to save output files.
 
     Returns:
-        Tuple containing (list of VS Code converted file paths, list of Roo Code converted file paths, list of Windsurf converted file paths, list of Cline converted file paths, list of Gemini CLI converted file paths, list of Kilo Code converted file paths, list of copied file paths)
+        Tuple containing (list of VS Code converted file paths, list of Roo Code converted file paths, list of Windsurf converted file paths, list of Cline converted file paths, list of Gemini CLI converted file paths, list of Kilo Code converted file paths, list of Antigravity converted file paths, list of copied file paths)
     """
     input_dir_abs = os.path.abspath(input_dir_str)
     vscode_converted_files = []
@@ -912,11 +948,12 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
     cline_converted_files = []
     gemini_cli_converted_files = []
     kilo_code_converted_files = []
+    antigravity_converted_files = []
     copied_files = []
 
     if not os.path.isdir(input_dir_abs):
         print(f"Info: Input directory not found at {input_dir_abs}. No files will be converted from this path.")
-        return [], [], [], [], [], [], []
+        return [], [], [], [], [], [], [], []
 
     # Use provided output directory or the parent of input directory
     if output_dir_str:
@@ -946,6 +983,7 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 cline_instructions_content = convert_to_cline_instructions(mdc_content)
                 gemini_cli_instructions_content = convert_to_gemini_cli_instructions(mdc_content)
                 kilo_code_instructions_content = convert_to_kilo_code_instructions(mdc_content)
+                antigravity_instructions_content = convert_to_antigravity_instructions(mdc_content)
 
                 # Determine output paths maintaining directory structure
                 # VS Code: base_for_output / .github / instructions / rel_path_from_input / filename.instructions.md
@@ -994,6 +1032,13 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 relative_path_for_import = os.path.relpath(gemini_cli_output_path, gemini_rules_dir)
                 gemini_master_file_content.append(f"@{relative_path_for_import}\n")
 
+                # Google Antigravity: base_for_output / .agent / rules / rel_path_from_input / filename.md
+                antigravity_output_rules_subdir = os.path.join(base_for_output, ".agent", "rules", rel_path_from_input)
+                antigravity_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
+                antigravity_output_path = os.path.join(antigravity_output_rules_subdir, antigravity_output_filename)
+                save_antigravity_instructions(antigravity_instructions_content, antigravity_output_path)
+                antigravity_converted_files.append(antigravity_output_path)
+
             else:
                 # Copy non-template files maintaining directory structure
                 # base_for_output / rel_path_from_input / file
@@ -1006,4 +1051,4 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
         f.write("".join(gemini_master_file_content))
     gemini_cli_converted_files.append(gemini_master_file_path)
 
-    return vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, gemini_cli_converted_files, kilo_code_converted_files, copied_files
+    return vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, gemini_cli_converted_files, kilo_code_converted_files, antigravity_converted_files, copied_files

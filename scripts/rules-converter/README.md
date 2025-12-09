@@ -1,10 +1,10 @@
 # Rules Converter
 
-A Python application that converts Cursor IDE rules MDC files into VS Code instruction files, Roo Code rules files, Windsurf rules files, Cline rules files, and Kilo Code rules files.
+A Python application that converts Cursor IDE rules MDC files into VS Code instruction files, Roo Code rules files, Windsurf rules files, Cline rules files, Kilo Code rules files, Gemini CLI rules files, and Google Antigravity rules files.
 
 ## Output Formats
 
-This converter transforms Cursor IDE rules MDC files into six different formats:
+This converter transforms Cursor IDE rules MDC files into seven different formats:
 
 1. **VS Code instruction files** (.instructions.md) - Compatible with VS Code Copilot as described in the [VS Code Copilot Customization documentation](https://code.visualstudio.com/docs/copilot/copilot-customization#_instruction-files)
 2. **Roo Code rules files** (.md) - Compatible with Roo Code custom instructions as described in the [Roo Code Custom Instructions documentation](https://docs.roocode.com/features/custom-instructions/)
@@ -12,6 +12,7 @@ This converter transforms Cursor IDE rules MDC files into six different formats:
 4. **Cline rules files** (.md) - Compatible with Cline AI assistant as plain markdown files
 5. **Kilo Code rules files** (.md) - Compatible with Kilo Code AI assistant as plain markdown files. Compatible with Kilo Code as described in the [Kilo Code Customization documentation](https://kilocode.ai/docs/advanced-usage/custom-rules)
 6. **Gemini CLI rules files** (.md) - Compatible with Gemini CLI with import structure
+7. **Google Antigravity rules files** (.md) - Compatible with Google Antigravity as described in the [Getting Started with Google Antigravity documentation](https://codelabs.developers.google.com/getting-started-google-antigravity#7)
 
 #### Windsurf Format Details
 
@@ -32,9 +33,13 @@ Cline rules files are plain markdown files without frontmatter, similar to Roo C
 
 Kilo Code rules files are plain markdown files without frontmatter, similar to Roo Code format but stored in the `.kilocode/rules/` directory. Kilo Code automatically processes all markdown files in this directory.
 
+#### Google Antigravity Format Details
+
+Google Antigravity rules files are plain markdown files without frontmatter, stored in the `.agent/rules/` directory. Antigravity automatically processes all markdown files in this directory. Rules help guide the behavior of the agent.
+
 ### Output Directory Structure
 
-When converting, the tool creates files in all six formats:
+When converting, the tool creates files in all seven formats:
 
 - **VS Code**: `.github/instructions/` directory with `.instructions.md` files
 - **Roo Code**: `.roo/rules/` directory with `.md` files
@@ -42,6 +47,7 @@ When converting, the tool creates files in all six formats:
 - **Cline**: `.clinerules/` directory with `.md` files
 - **Kilo Code**: `.kilocode/rules/` directory with `.md` files
 - **Gemini CLI**: `.gemini/` directory with `.md` files and a master `GEMINI.md` file
+- **Google Antigravity**: `.agent/rules/` directory with `.md` files
 
 ## Installation
 
@@ -93,7 +99,7 @@ The tool processes template files through a 4-stage pipeline:
 4. **Deployment** - Place files in correct directory structure for each tool
 
 When processing, the tool will:
-- Convert `.mdc` template files to VS Code instruction files (`.instructions.md`) in `.github/instructions/`, Roo Code rules files (`.md`) in `.roo/rules/`, Windsurf rules files (`.md`) in `.windsurf/rules/`, Cline rules files (`.md`) in `.clinerules/`, Kilo Code rules files (`.md`) in `.kilocode/rules/`, and Gemini CLI rules files (`.md`) in `.gemini/`.
+- Convert `.mdc` template files to VS Code instruction files (`.instructions.md`) in `.github/instructions/`, Roo Code rules files (`.md`) in `.roo/rules/`, Windsurf rules files (`.md`) in `.windsurf/rules/`, Cline rules files (`.md`) in `.clinerules/`, Kilo Code rules files (`.md`) in `.kilocode/rules/`, Gemini CLI rules files (`.md`) in `.gemini/`, and Google Antigravity rules files (`.md`) in `.agent/rules/`.
 - For Gemini CLI, it will create a `.gemini/` directory in the project for individual rules and a `GEMINI.md` in the same directory to import them.
 - Copy all non-template files from the source directory to the output directory (if output directory is specified), preserving the directory structure.
 - Maintain the directory structure inside each tool's rules directories.
