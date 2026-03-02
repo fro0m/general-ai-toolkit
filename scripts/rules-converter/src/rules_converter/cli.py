@@ -31,7 +31,7 @@ def main(source_directory, rules_description_json, output_dir):
     Processing Stages:
     1. Template Variable Substitution - Replace {variable} placeholders with values from JSON
     2. Path and File Validation - Validate all file paths and references in processed rules
-    3. Format Conversion - Convert to VS Code, Roo Code, Windsurf, Cline, Gemini, Kilo Code, and Antigravity formats
+    3. Format Conversion - Convert to VS Code, Roo Code, Windsurf, Cline, Gemini, Kilo Code, Antigravity, Qwen Code, Claude Code, and Codex formats
     4. Deployment - Place files in correct directory structure for each tool
     
     Examples:
@@ -100,7 +100,10 @@ def main(source_directory, rules_description_json, output_dir):
             click.echo("✓ All file paths and references are valid")
         
         click.echo("\nStage 3 & 4: Format Conversion and Deployment...")
-        vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, gemini_cli_converted_files, kilo_code_converted_files, antigravity_converted_files, copied_files = convert_directory(cooked_rules_dir, output_dir)
+        (vscode_converted_files, roo_converted_files, windsurf_converted_files,
+         cline_converted_files, gemini_cli_converted_files, kilo_code_converted_files,
+         antigravity_converted_files, qwen_code_converted_files, claude_code_converted_files,
+         codex_converted_files, copied_files) = convert_directory(cooked_rules_dir, output_dir)
 
         total_processed = len(vscode_converted_files) + len(copied_files)
 
@@ -113,6 +116,9 @@ def main(source_directory, rules_description_json, output_dir):
         click.echo(f"  - Gemini CLI rules: {len(gemini_cli_converted_files)} files")
         click.echo(f"  - Kilo Code rules: {len(kilo_code_converted_files)} files")
         click.echo(f"  - Antigravity rules: {len(antigravity_converted_files)} files")
+        click.echo(f"  - Qwen Code rules: {len(qwen_code_converted_files)} files")
+        click.echo(f"  - Claude Code rules: {len(claude_code_converted_files)} files")
+        click.echo(f"  - OpenAI Codex rules: {len(codex_converted_files)} files")
         click.echo(f"✓ Copied {len(copied_files)} other files")
         
         click.echo(f"\n✅ Rules conversion completed successfully!")
