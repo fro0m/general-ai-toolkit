@@ -1,5 +1,7 @@
 """
-Converter module for transforming Cursor IDE rules MDC files to VS Code instruction files.
+Converter module for transforming Cursor IDE rules MDC files to multiple AI coding tool formats.
+Supports VS Code, Roo Code, Windsurf, Cline, Gemini CLI, Kilo Code, Antigravity,
+Qwen Code, Claude Code, and OpenAI Codex.
 """
 import os
 import json
@@ -679,6 +681,35 @@ def convert_to_gemini_cli_instructions(mdc_content: str) -> str:
     return convert_to_roo_instructions(mdc_content)
 
 
+def convert_to_antigravity_instructions(mdc_content: str) -> str:
+    """
+    Convert MDC content to Google Antigravity instructions format.
+    Antigravity instructions are plain text/markdown files without frontmatter,
+    stored in .agent/rules/ directory.
+
+    Args:
+        mdc_content: Content from the MDC file
+
+    Returns:
+        Content formatted for Google Antigravity instruction files
+    """
+    return convert_to_roo_instructions(mdc_content)
+
+
+def save_antigravity_instructions(instructions_content: str, output_path: str) -> None:
+    """
+    Save Google Antigravity instructions to a file.
+
+    Args:
+        instructions_content: Content for the instructions file
+        output_path: Path to save the instructions file
+    """
+    # Create parent directories if they don't exist
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(instructions_content)
+
 def convert_to_kilo_code_instructions(mdc_content: str) -> str:
     """
     Convert MDC content to Kilo Code instructions format.
@@ -786,7 +817,102 @@ def save_kilo_code_instructions(instructions_content: str, output_path: str) -> 
         f.write(instructions_content)
 
 
-def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> Tuple[str, str, str, str, str, str]:
+def convert_to_qwen_code_instructions(mdc_content: str) -> str:
+    """
+    Convert MDC content to Qwen Code instructions format.
+    Qwen Code (fork of Gemini CLI) uses QWEN.md context files with plain markdown.
+    Individual rule files are plain markdown without frontmatter.
+
+    See: https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/
+    (Context Files section)
+
+    Args:
+        mdc_content: Content from the MDC file
+
+    Returns:
+        Content formatted for Qwen Code instruction files
+    """
+    return convert_to_roo_instructions(mdc_content)
+
+
+def save_qwen_code_instructions(instructions_content: str, output_path: str) -> None:
+    """
+    Save Qwen Code instructions to a file.
+
+    Args:
+        instructions_content: Content for the instructions file
+        output_path: Path to save the instructions file
+    """
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(instructions_content)
+
+
+def convert_to_claude_code_instructions(mdc_content: str) -> str:
+    """
+    Convert MDC content to Claude Code instructions format.
+    Claude Code uses .claude/rules/ directory with plain markdown files.
+    Rules without a 'paths' frontmatter field are loaded unconditionally.
+
+    See: https://code.claude.com/docs/en/memory
+    (Organize rules with .claude/rules/ section)
+
+    Args:
+        mdc_content: Content from the MDC file
+
+    Returns:
+        Content formatted for Claude Code rule files
+    """
+    return convert_to_roo_instructions(mdc_content)
+
+
+def save_claude_code_instructions(instructions_content: str, output_path: str) -> None:
+    """
+    Save Claude Code instructions to a file.
+
+    Args:
+        instructions_content: Content for the instructions file
+        output_path: Path to save the instructions file
+    """
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(instructions_content)
+
+
+def convert_to_codex_instructions(mdc_content: str) -> str:
+    """
+    Convert MDC content to OpenAI Codex instructions format.
+    Codex uses AGENTS.md files with plain markdown content.
+    Codex discovers AGENTS.md by walking from project root to current directory.
+
+    See: https://developers.openai.com/codex/guides/agents-md
+
+    Args:
+        mdc_content: Content from the MDC file
+
+    Returns:
+        Content formatted for OpenAI Codex AGENTS.md
+    """
+    return convert_to_roo_instructions(mdc_content)
+
+
+def save_codex_instructions(instructions_content: str, output_path: str) -> None:
+    """
+    Save OpenAI Codex instructions to a file.
+
+    Args:
+        instructions_content: Content for the instructions file
+        output_path: Path to save the instructions file
+    """
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(instructions_content)
+
+
+def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> Tuple[str, str, str, str, str, str, str, str, str, str]:
     """
     Convert a single template file to all target formats.
 
@@ -795,7 +921,8 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         output_dir_str: Directory to save the output files (optional)
 
     Returns:
-        Tuple of (VS Code instructions file path, Roo Code instructions file path, Windsurf instructions file path, Cline instructions file path, Gemini CLI instructions file path, Kilo Code instructions file path)
+        Tuple of (VS Code, Roo Code, Windsurf, Cline, Gemini CLI, Kilo Code,
+        Antigravity, Qwen Code, Claude Code, Codex instructions file paths)
     """
     input_path_abs = os.path.abspath(input_path_str)
     input_file_name = os.path.basename(input_path_abs)
@@ -809,6 +936,10 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         cline_instructions_content = convert_to_cline_instructions(mdc_content)
         gemini_cli_instructions_content = convert_to_gemini_cli_instructions(mdc_content)
         kilo_code_instructions_content = convert_to_kilo_code_instructions(mdc_content)
+        antigravity_instructions_content = convert_to_antigravity_instructions(mdc_content)
+        qwen_code_instructions_content = convert_to_qwen_code_instructions(mdc_content)
+        claude_code_instructions_content = convert_to_claude_code_instructions(mdc_content)
+        codex_instructions_content = convert_to_codex_instructions(mdc_content)
         
         # Determine base output directory
         if output_dir_str:
@@ -857,7 +988,47 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         kilo_code_output_path = os.path.join(kilo_code_rules_dir, kilo_code_output_filename)
         save_kilo_code_instructions(kilo_code_instructions_content, kilo_code_output_path)
 
-        return vscode_output_path, roo_output_path, windsurf_output_path, cline_output_path, gemini_master_file_path, kilo_code_output_path
+        # Google Antigravity output structure: base_for_output/.agent/rules/original_filename.md
+        antigravity_rules_dir = os.path.join(base_for_output, ".agent", "rules")
+        antigravity_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        antigravity_output_path = os.path.join(antigravity_rules_dir, antigravity_output_filename)
+        save_antigravity_instructions(antigravity_instructions_content, antigravity_output_path)
+
+        # Qwen Code output structure: base_for_output/.qwen/ with QWEN.md master file and individual rule files
+        # See: https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/
+        qwen_rules_dir = os.path.join(base_for_output, ".qwen")
+        qwen_master_file_path = os.path.join(qwen_rules_dir, "QWEN.md")
+        qwen_code_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        qwen_code_output_path = os.path.join(qwen_rules_dir, qwen_code_output_filename)
+        save_qwen_code_instructions(qwen_code_instructions_content, qwen_code_output_path)
+
+        relative_path_for_qwen_import = os.path.relpath(qwen_code_output_path, qwen_rules_dir)
+        with open(qwen_master_file_path, 'w', encoding='utf-8') as f:
+            f.write(f"# Qwen Code Rules\n\n@{relative_path_for_qwen_import}\n")
+
+        # Claude Code output structure: base_for_output/.claude/rules/original_filename.md
+        # with .claude/CLAUDE.md master file importing rules via @rules/filename.md
+        # See: https://code.claude.com/docs/en/memory
+        claude_rules_dir = os.path.join(base_for_output, ".claude", "rules")
+        claude_master_file_path = os.path.join(base_for_output, ".claude", "CLAUDE.md")
+        claude_code_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        claude_code_output_path = os.path.join(claude_rules_dir, claude_code_output_filename)
+        save_claude_code_instructions(claude_code_instructions_content, claude_code_output_path)
+
+        relative_path_for_claude_import = os.path.relpath(claude_code_output_path, os.path.join(base_for_output, ".claude"))
+        os.makedirs(os.path.dirname(claude_master_file_path), exist_ok=True)
+        with open(claude_master_file_path, 'w', encoding='utf-8') as f:
+            f.write(f"# Claude Code Rules\n\n@{relative_path_for_claude_import}\n")
+
+        # OpenAI Codex output structure: base_for_output/AGENTS.md (single file at project root)
+        # See: https://developers.openai.com/codex/guides/agents-md
+        codex_output_path = os.path.join(base_for_output, "AGENTS.md")
+        save_codex_instructions(codex_instructions_content, codex_output_path)
+
+        return (vscode_output_path, roo_output_path, windsurf_output_path,
+                cline_output_path, gemini_master_file_path, kilo_code_output_path,
+                antigravity_output_path, qwen_master_file_path, claude_master_file_path,
+                codex_output_path)
     except Exception as e:
         print(f"Error converting {input_path_abs}: {str(e)}")
         raise
@@ -891,11 +1062,12 @@ def copy_file(input_path: str, output_dir: str) -> str:
     return output_path
 
 
-def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) -> Tuple[List[str], List[str], List[str], List[str], List[str], List[str], List[str]]:
+def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) -> Tuple[List[str], List[str], List[str], List[str], List[str], List[str], List[str], List[str], List[str], List[str], List[str]]:
     """
     Convert all template files in a directory and its subdirectories.
     Input directory should contain processed template files (from Stage 1).
-    Converts files to all target formats (VS Code, Roo Code, Windsurf, Cline, Gemini, Kilo Code).
+    Converts files to all target formats (VS Code, Roo Code, Windsurf, Cline, Gemini,
+    Kilo Code, Antigravity, Qwen Code, Claude Code, Codex).
     Also copies non-template files to the output directory.
 
     Args:
@@ -903,7 +1075,9 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
         output_dir_str: Directory to save output files.
 
     Returns:
-        Tuple containing (list of VS Code converted file paths, list of Roo Code converted file paths, list of Windsurf converted file paths, list of Cline converted file paths, list of Gemini CLI converted file paths, list of Kilo Code converted file paths, list of copied file paths)
+        Tuple containing lists of converted file paths for each format and copied files:
+        (vscode, roo, windsurf, cline, gemini_cli, kilo_code, antigravity,
+         qwen_code, claude_code, codex, copied_files)
     """
     input_dir_abs = os.path.abspath(input_dir_str)
     vscode_converted_files = []
@@ -912,11 +1086,15 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
     cline_converted_files = []
     gemini_cli_converted_files = []
     kilo_code_converted_files = []
+    antigravity_converted_files = []
+    qwen_code_converted_files = []
+    claude_code_converted_files = []
+    codex_converted_files = []
     copied_files = []
 
     if not os.path.isdir(input_dir_abs):
         print(f"Info: Input directory not found at {input_dir_abs}. No files will be converted from this path.")
-        return [], [], [], [], [], [], []
+        return [], [], [], [], [], [], [], [], [], [], []
 
     # Use provided output directory or the parent of input directory
     if output_dir_str:
@@ -927,6 +1105,23 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
     gemini_rules_dir = os.path.join(base_for_output, ".gemini")
     gemini_master_file_path = os.path.join(gemini_rules_dir, "GEMINI.md")
     gemini_master_file_content = ["# Gemini CLI Rules\n\n"]
+
+    # Qwen Code: .qwen/ directory with QWEN.md master file and @import syntax
+    # See: https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/
+    qwen_rules_dir = os.path.join(base_for_output, ".qwen")
+    qwen_master_file_path = os.path.join(qwen_rules_dir, "QWEN.md")
+    qwen_master_file_content = ["# Qwen Code Rules\n\n"]
+
+    # Claude Code: .claude/ directory with CLAUDE.md master file and .claude/rules/ for rule files
+    # See: https://code.claude.com/docs/en/memory
+    claude_base_dir = os.path.join(base_for_output, ".claude")
+    claude_master_file_path = os.path.join(claude_base_dir, "CLAUDE.md")
+    claude_master_file_content = ["# Claude Code Rules\n\n"]
+
+    # OpenAI Codex: AGENTS.md at project root, all rules concatenated
+    # See: https://developers.openai.com/codex/guides/agents-md
+    codex_output_path = os.path.join(base_for_output, "AGENTS.md")
+    codex_all_content_parts = []
 
     for root, _, files in os.walk(input_dir_abs):
         for file in files:
@@ -946,6 +1141,10 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 cline_instructions_content = convert_to_cline_instructions(mdc_content)
                 gemini_cli_instructions_content = convert_to_gemini_cli_instructions(mdc_content)
                 kilo_code_instructions_content = convert_to_kilo_code_instructions(mdc_content)
+                antigravity_instructions_content = convert_to_antigravity_instructions(mdc_content)
+                qwen_code_instructions_content = convert_to_qwen_code_instructions(mdc_content)
+                claude_code_instructions_content = convert_to_claude_code_instructions(mdc_content)
+                codex_instructions_content = convert_to_codex_instructions(mdc_content)
 
                 # Determine output paths maintaining directory structure
                 # VS Code: base_for_output / .github / instructions / rel_path_from_input / filename.instructions.md
@@ -990,9 +1189,41 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 save_kilo_code_instructions(kilo_code_instructions_content, kilo_code_output_path)
                 kilo_code_converted_files.append(kilo_code_output_path)
 
-                # Add import statement to master file
+                # Add import statement to Gemini master file
                 relative_path_for_import = os.path.relpath(gemini_cli_output_path, gemini_rules_dir)
                 gemini_master_file_content.append(f"@{relative_path_for_import}\n")
+
+                # Google Antigravity: base_for_output / .agent / rules / rel_path_from_input / filename.md
+                antigravity_output_rules_subdir = os.path.join(base_for_output, ".agent", "rules", rel_path_from_input)
+                antigravity_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
+                antigravity_output_path = os.path.join(antigravity_output_rules_subdir, antigravity_output_filename)
+                save_antigravity_instructions(antigravity_instructions_content, antigravity_output_path)
+                antigravity_converted_files.append(antigravity_output_path)
+
+                # Qwen Code: base_for_output / .qwen / rel_path_from_input / filename.md
+                qwen_code_output_rules_subdir = os.path.join(base_for_output, ".qwen", rel_path_from_input)
+                qwen_code_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
+                qwen_code_output_path = os.path.join(qwen_code_output_rules_subdir, qwen_code_output_filename)
+                save_qwen_code_instructions(qwen_code_instructions_content, qwen_code_output_path)
+                qwen_code_converted_files.append(qwen_code_output_path)
+
+                # Add import statement to Qwen master file
+                relative_path_for_qwen_import = os.path.relpath(qwen_code_output_path, qwen_rules_dir)
+                qwen_master_file_content.append(f"@{relative_path_for_qwen_import}\n")
+
+                # Claude Code: base_for_output / .claude / rules / rel_path_from_input / filename.md
+                claude_code_output_rules_subdir = os.path.join(base_for_output, ".claude", "rules", rel_path_from_input)
+                claude_code_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
+                claude_code_output_path = os.path.join(claude_code_output_rules_subdir, claude_code_output_filename)
+                save_claude_code_instructions(claude_code_instructions_content, claude_code_output_path)
+                claude_code_converted_files.append(claude_code_output_path)
+
+                # Add import statement to Claude master file
+                relative_path_for_claude_import = os.path.relpath(claude_code_output_path, claude_base_dir)
+                claude_master_file_content.append(f"@{relative_path_for_claude_import}\n")
+
+                # OpenAI Codex: collect content for single AGENTS.md
+                codex_all_content_parts.append(codex_instructions_content)
 
             else:
                 # Copy non-template files maintaining directory structure
@@ -1002,8 +1233,30 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 copied_files.append(output_path)
 
     # Write Gemini master file
+    os.makedirs(os.path.dirname(gemini_master_file_path), exist_ok=True)
     with open(gemini_master_file_path, 'w', encoding='utf-8') as f:
         f.write("".join(gemini_master_file_content))
     gemini_cli_converted_files.append(gemini_master_file_path)
 
-    return vscode_converted_files, roo_converted_files, windsurf_converted_files, cline_converted_files, gemini_cli_converted_files, kilo_code_converted_files, copied_files
+    # Write Qwen Code master file
+    os.makedirs(os.path.dirname(qwen_master_file_path), exist_ok=True)
+    with open(qwen_master_file_path, 'w', encoding='utf-8') as f:
+        f.write("".join(qwen_master_file_content))
+    qwen_code_converted_files.append(qwen_master_file_path)
+
+    # Write Claude Code master file
+    os.makedirs(os.path.dirname(claude_master_file_path), exist_ok=True)
+    with open(claude_master_file_path, 'w', encoding='utf-8') as f:
+        f.write("".join(claude_master_file_content))
+    claude_code_converted_files.append(claude_master_file_path)
+
+    # Write OpenAI Codex AGENTS.md (all rules concatenated)
+    os.makedirs(os.path.dirname(codex_output_path), exist_ok=True)
+    with open(codex_output_path, 'w', encoding='utf-8') as f:
+        f.write("\n\n".join(codex_all_content_parts))
+    codex_converted_files.append(codex_output_path)
+
+    return (vscode_converted_files, roo_converted_files, windsurf_converted_files,
+            cline_converted_files, gemini_cli_converted_files, kilo_code_converted_files,
+            antigravity_converted_files, qwen_code_converted_files, claude_code_converted_files,
+            codex_converted_files, copied_files)

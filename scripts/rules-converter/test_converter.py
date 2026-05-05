@@ -20,13 +20,18 @@ def main():
         sys.exit(1)
     
     print("Converting single file...")
-    vscode_output_file, roo_output_file, windsurf_output_file, cline_output_file, gemini_cli_output_file = convert_file(sample_file)
+    vscode_output_file, roo_output_file, windsurf_output_file, cline_output_file, gemini_cli_output_file, kilo_code_output_file, antigravity_output_file, qwen_code_output_file, claude_code_output_file, codex_output_file = convert_file(sample_file)
     print(f"Converted {sample_file}:")
     print(f"  - VS Code: {vscode_output_file}")
     print(f"  - Roo Code: {roo_output_file}")
     print(f"  - Windsurf: {windsurf_output_file}")
     print(f"  - Cline: {cline_output_file}")
     print(f"  - Gemini CLI: {gemini_cli_output_file}")
+    print(f"  - Kilo Code: {kilo_code_output_file}")
+    print(f"  - Antigravity: {antigravity_output_file}")
+    print(f"  - Qwen Code: {qwen_code_output_file}")
+    print(f"  - Claude Code: {claude_code_output_file}")
+    print(f"  - OpenAI Codex: {codex_output_file}")
     
     # Create a test directory with multiple MDC files
     test_project_dir = os.path.join(script_dir, 'test_project_programmatic')
@@ -72,7 +77,7 @@ def main():
     output_dir = os.path.join(script_dir, 'output_test_programmatic') # Changed to avoid conflict with gitignored 'output'
     os.makedirs(output_dir, exist_ok=True) # Ensure output_dir exists
     
-    vscode_converted_paths, roo_converted_paths, windsurf_converted_paths, cline_converted_paths, gemini_cli_converted_paths, copied_paths = convert_directory(test_project_dir, output_dir)
+    vscode_converted_paths, roo_converted_paths, windsurf_converted_paths, cline_converted_paths, gemini_cli_converted_paths, kilo_code_converted_paths, antigravity_converted_paths, qwen_code_converted_paths, claude_code_converted_paths, codex_converted_paths, copied_paths = convert_directory(test_project_dir, output_dir)
     
     total_processed = len(vscode_converted_paths) + len(copied_paths)
     print(f"Processed {total_processed} files to {output_dir}:")
@@ -95,6 +100,26 @@ def main():
     if gemini_cli_converted_paths:
         print(f"  Converted {len(gemini_cli_converted_paths)} '.mdc' files to Gemini CLI rules:")
         for file_path in gemini_cli_converted_paths:
+            print(f"    - {file_path}")
+    if kilo_code_converted_paths:
+        print(f"  Converted {len(kilo_code_converted_paths)} '.mdc' files to Kilo Code rules:")
+        for file_path in kilo_code_converted_paths:
+            print(f"    - {file_path}")
+    if antigravity_converted_paths:
+        print(f"  Converted {len(antigravity_converted_paths)} '.mdc' files to Antigravity rules:")
+        for file_path in antigravity_converted_paths:
+            print(f"    - {file_path}")
+    if qwen_code_converted_paths:
+        print(f"  Converted {len(qwen_code_converted_paths)} '.mdc' files to Qwen Code rules:")
+        for file_path in qwen_code_converted_paths:
+            print(f"    - {file_path}")
+    if claude_code_converted_paths:
+        print(f"  Converted {len(claude_code_converted_paths)} '.mdc' files to Claude Code rules:")
+        for file_path in claude_code_converted_paths:
+            print(f"    - {file_path}")
+    if codex_converted_paths:
+        print(f"  Converted {len(codex_converted_paths)} '.mdc' files to OpenAI Codex rules:")
+        for file_path in codex_converted_paths:
             print(f"    - {file_path}")
     if copied_paths:
         print(f"  Copied {len(copied_paths)} other files:")
