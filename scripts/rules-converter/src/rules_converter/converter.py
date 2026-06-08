@@ -10,6 +10,56 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
 
 
+def normalize_directory_component(name: str) -> str:
+    """
+    Normalize a single directory component.
+
+    Directories should use hyphens between parts, not underscores.
+    """
+    if not name or name in ('.', '..'):
+        return name
+
+    prefix = ''
+    if name.startswith('.'):
+        prefix = '.'
+        name = name[1:]
+
+    normalized = re.sub(r'[_\s]+', '-', name)
+    normalized = re.sub(r'-+', '-', normalized)
+    return prefix + normalized
+
+
+def normalize_relative_path(path: str) -> str:
+    """Normalize all components of a relative path for directories."""
+    if not path or path == '.':
+        return ''
+
+    parts = path.split(os.sep)
+    normalized_parts = [normalize_directory_component(part) for part in parts if part and part != '.']
+    return os.sep.join(normalized_parts)
+
+
+def normalize_file_base_name(name: str) -> str:
+    """Normalize a file base name to use underscores for part separators."""
+    if not name:
+        return name
+
+    prefix = ''
+    if name.startswith('.'):
+        prefix = '.'
+        name = name[1:]
+
+    normalized = re.sub(r'[-\s]+', '_', name)
+    normalized = re.sub(r'_+', '_', normalized)
+    return prefix + normalized
+
+
+def normalize_file_name(file_name: str) -> str:
+    """Normalize a file name while preserving its extension."""
+    base, ext = os.path.splitext(file_name)
+    return normalize_file_base_name(base) + ext
+
+
 def substitute_template_variables(content: str, variables: Dict[str, Any]) -> Tuple[str, List[str]]:
     """
     Substitute {variable} placeholders in content with values from variables dict.
@@ -17,7 +67,7 @@ def substitute_template_variables(content: str, variables: Dict[str, Any]) -> Tu
     Args:
         content: Text content with {variable} placeholders
         variables: Dictionary of variable name -> value mappings
-
+50
     Returns:
         Tuple of (substituted_content, list_of_missing_variables)
     """
@@ -817,6 +867,39 @@ def save_kilo_code_instructions(instructions_content: str, output_path: str) -> 
         f.write(instructions_content)
 
 
+def write_kilo_json(base_output_dir: str, rule_files: List[str]) -> str:
+    """
+    Write a kilo.json config file with instructions referencing all rule files.
+
+    Per Kilo documentation (https://kilo.ai/docs/customize/custom-rules#vscode):
+    - Project rules are configured via the 'instructions' key in kilo.json
+    - Rules are placed in .kilo/rules/ directory
+    - A glob pattern can reference all rules
+
+    Args:
+        base_output_dir: Base output directory (e.g. copy-content-to-prj-directory)
+        rule_files: List of relative rule file paths
+
+    Returns:
+        Path to the written kilo.json file
+    """
+    kilo_json_path = os.path.join(base_output_dir, "kilo.json")
+
+    instructions = [".kilo/rules/*.md"]
+
+    kilo_config = {
+        "$schema": "https://app.kilo.ai/config.json",
+        "instructions": instructions
+    }
+
+    os.makedirs(base_output_dir, exist_ok=True)
+    with open(kilo_json_path, 'w', encoding='utf-8') as f:
+        json.dump(kilo_config, f, indent=2)
+        f.write('\n')
+
+    return kilo_json_path
+
+
 def convert_to_qwen_code_instructions(mdc_content: str) -> str:
     """
     Convert MDC content to Qwen Code instructions format.
@@ -949,32 +1032,33 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         
         # VS Code output structure: base_for_output/.github/instructions/original_filename.instructions.md
         github_instructions_dir = os.path.join(base_for_output, ".github", "instructions")
-        vscode_output_filename = os.path.splitext(input_file_name)[0] + ".instructions.md"
+        input_file_base = normalize_file_base_name(os.path.splitext(input_file_name)[0])
+        vscode_output_filename = input_file_base + ".instructions.md"
         vscode_output_path = os.path.join(github_instructions_dir, vscode_output_filename)
         save_vscode_instructions(vscode_instructions_content, vscode_output_path)
         
         # Roo Code output structure: base_for_output/.roo/rules/original_filename.md
         roo_rules_dir = os.path.join(base_for_output, ".roo", "rules")
-        roo_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        roo_output_filename = input_file_base + ".md"
         roo_output_path = os.path.join(roo_rules_dir, roo_output_filename)
         save_roo_instructions(roo_instructions_content, roo_output_path)
         
         # Windsurf output structure: base_for_output/.windsurf/rules/original_filename.md
         windsurf_rules_dir = os.path.join(base_for_output, ".windsurf", "rules")
-        windsurf_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        windsurf_output_filename = input_file_base + ".md"
         windsurf_output_path = os.path.join(windsurf_rules_dir, windsurf_output_filename)
         save_windsurf_instructions(windsurf_instructions_content, windsurf_output_path)
         
         # Cline output structure: base_for_output/.clinerules/original_filename.md
         cline_rules_dir = os.path.join(base_for_output, ".clinerules")
-        cline_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        cline_output_filename = input_file_base + ".md"
         cline_output_path = os.path.join(cline_rules_dir, cline_output_filename)
         save_cline_instructions(cline_instructions_content, cline_output_path)
 
         # Gemini CLI output structure
         gemini_rules_dir = os.path.join(base_for_output, ".gemini")
         gemini_master_file_path = os.path.join(gemini_rules_dir, "GEMINI.md")
-        gemini_cli_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        gemini_cli_output_filename = input_file_base + ".md"
         gemini_cli_output_path = os.path.join(gemini_rules_dir, gemini_cli_output_filename)
         save_gemini_cli_instructions(gemini_cli_instructions_content, gemini_cli_output_path)
 
@@ -982,15 +1066,21 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         with open(gemini_master_file_path, 'w', encoding='utf-8') as f:
             f.write(f"# Gemini CLI Rules\n\n@{relative_path_for_import}\n")
 
-        # Kilo Code output structure: base_for_output/.kilocode/rules/original_filename.md
+        # Kilo Code legacy output structure: base_for_output/.kilocode/rules/original_filename.md
         kilo_code_rules_dir = os.path.join(base_for_output, ".kilocode", "rules")
-        kilo_code_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        kilo_code_output_filename = input_file_base + ".md"
         kilo_code_output_path = os.path.join(kilo_code_rules_dir, kilo_code_output_filename)
         save_kilo_code_instructions(kilo_code_instructions_content, kilo_code_output_path)
 
+        # Kilo Code new standard output: base_for_output/.kilo/rules/original_filename.md
+        kilo_new_rules_dir = os.path.join(base_for_output, ".kilo", "rules")
+        kilo_new_output_filename = input_file_base + ".md"
+        kilo_new_output_path = os.path.join(kilo_new_rules_dir, kilo_new_output_filename)
+        save_kilo_code_instructions(kilo_code_instructions_content, kilo_new_output_path)
+
         # Google Antigravity output structure: base_for_output/.agent/rules/original_filename.md
         antigravity_rules_dir = os.path.join(base_for_output, ".agent", "rules")
-        antigravity_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        antigravity_output_filename = input_file_base + ".md"
         antigravity_output_path = os.path.join(antigravity_rules_dir, antigravity_output_filename)
         save_antigravity_instructions(antigravity_instructions_content, antigravity_output_path)
 
@@ -998,7 +1088,7 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         # See: https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/
         qwen_rules_dir = os.path.join(base_for_output, ".qwen")
         qwen_master_file_path = os.path.join(qwen_rules_dir, "QWEN.md")
-        qwen_code_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        qwen_code_output_filename = input_file_base + ".md"
         qwen_code_output_path = os.path.join(qwen_rules_dir, qwen_code_output_filename)
         save_qwen_code_instructions(qwen_code_instructions_content, qwen_code_output_path)
 
@@ -1011,7 +1101,7 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         # See: https://code.claude.com/docs/en/memory
         claude_rules_dir = os.path.join(base_for_output, ".claude", "rules")
         claude_master_file_path = os.path.join(base_for_output, ".claude", "CLAUDE.md")
-        claude_code_output_filename = os.path.splitext(input_file_name)[0] + ".md"
+        claude_code_output_filename = input_file_base + ".md"
         claude_code_output_path = os.path.join(claude_rules_dir, claude_code_output_filename)
         save_claude_code_instructions(claude_code_instructions_content, claude_code_output_path)
 
@@ -1025,6 +1115,10 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         codex_output_path = os.path.join(base_for_output, "AGENTS.md")
         save_codex_instructions(codex_instructions_content, codex_output_path)
 
+        # Write kilo.json with instructions referencing .kilo/rules/ directory
+        kilo_rule_files_convert_file = [kilo_new_output_path]
+        write_kilo_json(base_for_output, kilo_rule_files_convert_file)
+
         return (vscode_output_path, roo_output_path, windsurf_output_path,
                 cline_output_path, gemini_master_file_path, kilo_code_output_path,
                 antigravity_output_path, qwen_master_file_path, claude_master_file_path,
@@ -1034,25 +1128,24 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         raise
 
 
-def copy_file(input_path: str, output_dir: str) -> str:
+def copy_file(input_path: str, output_dir: str, output_name: Optional[str] = None) -> str:
     """
     Copy a file from the input path to the output directory.
     
     Args:
         input_path: Path to the input file
         output_dir: Directory to save the output file
-        
+        output_name: Optional output filename to use in the destination directory
+
     Returns:
         Path to the copied file
     """
     # Create output directories if they don't exist
     os.makedirs(output_dir, exist_ok=True)
     
-    # Determine the output file path
-    output_path = os.path.join(
-        output_dir,
-        os.path.basename(input_path)
-    )
+    if output_name is None:
+        output_name = os.path.basename(input_path)
+    output_path = os.path.join(output_dir, output_name)
     
     # Copy the file
     with open(input_path, 'rb') as source_file:
@@ -1132,6 +1225,8 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
             if rel_path_from_input == '.':
                 rel_path_from_input = ''
 
+            normalized_rel_path_from_input = normalize_relative_path(rel_path_from_input)
+
             # Process template files (.mdc files)
             if file.endswith(".mdc"):
                 mdc_content = parse_mdc_file(input_file_path)
@@ -1148,61 +1243,68 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
 
                 # Determine output paths maintaining directory structure
                 # VS Code: base_for_output / .github / instructions / rel_path_from_input / filename.instructions.md
-                vscode_output_instructions_subdir = os.path.join(base_for_output, ".github", "instructions", rel_path_from_input)
-                vscode_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".instructions.md"
+                vscode_output_instructions_subdir = os.path.join(base_for_output, ".github", "instructions", normalized_rel_path_from_input)
+                vscode_output_filename = normalize_file_base_name(os.path.splitext(os.path.basename(input_file_path))[0]) + ".instructions.md"
                 vscode_output_path = os.path.join(vscode_output_instructions_subdir, vscode_output_filename)
                 save_vscode_instructions(vscode_instructions_content, vscode_output_path)
                 vscode_converted_files.append(vscode_output_path)
 
                 # Roo Code: base_for_output / .roo / rules / rel_path_from_input / filename.md
-                roo_output_rules_subdir = os.path.join(base_for_output, ".roo", "rules", rel_path_from_input)
-                roo_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
+                roo_output_rules_subdir = os.path.join(base_for_output, ".roo", "rules", normalized_rel_path_from_input)
+                roo_output_filename = normalize_file_base_name(os.path.splitext(os.path.basename(input_file_path))[0]) + ".md"
                 roo_output_path = os.path.join(roo_output_rules_subdir, roo_output_filename)
                 save_roo_instructions(roo_instructions_content, roo_output_path)
                 roo_converted_files.append(roo_output_path)
 
                 # Windsurf: base_for_output / .windsurf / rules / rel_path_from_input / filename.md
-                windsurf_output_rules_subdir = os.path.join(base_for_output, ".windsurf", "rules", rel_path_from_input)
-                windsurf_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
+                windsurf_output_rules_subdir = os.path.join(base_for_output, ".windsurf", "rules", normalized_rel_path_from_input)
+                windsurf_output_filename = normalize_file_base_name(os.path.splitext(os.path.basename(input_file_path))[0]) + ".md"
                 windsurf_output_path = os.path.join(windsurf_output_rules_subdir, windsurf_output_filename)
                 save_windsurf_instructions(windsurf_instructions_content, windsurf_output_path)
                 windsurf_converted_files.append(windsurf_output_path)
 
                 # Cline: base_for_output / .clinerules / rel_path_from_input / filename.md
-                cline_output_rules_subdir = os.path.join(base_for_output, ".clinerules", rel_path_from_input)
-                cline_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
+                cline_output_rules_subdir = os.path.join(base_for_output, ".clinerules", normalized_rel_path_from_input)
+                cline_output_filename = normalize_file_base_name(os.path.splitext(os.path.basename(input_file_path))[0]) + ".md"
                 cline_output_path = os.path.join(cline_output_rules_subdir, cline_output_filename)
                 save_cline_instructions(cline_instructions_content, cline_output_path)
                 cline_converted_files.append(cline_output_path)
 
                 # Gemini CLI: base_for_output / .gemini / rel_path_from_input / filename.md
-                gemini_cli_output_rules_subdir = os.path.join(base_for_output, ".gemini", rel_path_from_input)
-                gemini_cli_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
+                gemini_cli_output_rules_subdir = os.path.join(base_for_output, ".gemini", normalized_rel_path_from_input)
+                gemini_cli_output_filename = normalize_file_base_name(os.path.splitext(os.path.basename(input_file_path))[0]) + ".md"
                 gemini_cli_output_path = os.path.join(gemini_cli_output_rules_subdir, gemini_cli_output_filename)
                 save_gemini_cli_instructions(gemini_cli_instructions_content, gemini_cli_output_path)
                 gemini_cli_converted_files.append(gemini_cli_output_path)
 
-                # Kilo Code: base_for_output / .kilocode / rules / rel_path_from_input / filename.md
-                kilo_code_output_rules_subdir = os.path.join(base_for_output, ".kilocode", "rules", rel_path_from_input)
-                kilo_code_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
+                # Kilo Code: base_for_output / .kilocode / rules / rel_path_from_input / filename.md (legacy)
+                kilo_code_output_rules_subdir = os.path.join(base_for_output, ".kilocode", "rules", normalized_rel_path_from_input)
+                kilo_code_output_filename = normalize_file_base_name(os.path.splitext(os.path.basename(input_file_path))[0]) + ".md"
                 kilo_code_output_path = os.path.join(kilo_code_output_rules_subdir, kilo_code_output_filename)
                 save_kilo_code_instructions(kilo_code_instructions_content, kilo_code_output_path)
                 kilo_code_converted_files.append(kilo_code_output_path)
+
+                # Kilo Code: base_for_output / .kilo / rules / rel_path_from_input / filename.md (current standard per docs)
+                kilo_rules_subdir = os.path.join(base_for_output, ".kilo", "rules", normalized_rel_path_from_input)
+                kilo_rules_output_filename = normalize_file_base_name(os.path.splitext(os.path.basename(input_file_path))[0]) + ".md"
+                kilo_rules_output_path = os.path.join(kilo_rules_subdir, kilo_rules_output_filename)
+                save_kilo_code_instructions(kilo_code_instructions_content, kilo_rules_output_path)
+                kilo_code_converted_files.append(kilo_rules_output_path)
 
                 # Add import statement to Gemini master file
                 relative_path_for_import = os.path.relpath(gemini_cli_output_path, gemini_rules_dir)
                 gemini_master_file_content.append(f"@{relative_path_for_import}\n")
 
                 # Google Antigravity: base_for_output / .agent / rules / rel_path_from_input / filename.md
-                antigravity_output_rules_subdir = os.path.join(base_for_output, ".agent", "rules", rel_path_from_input)
-                antigravity_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
+                antigravity_output_rules_subdir = os.path.join(base_for_output, ".agent", "rules", normalized_rel_path_from_input)
+                antigravity_output_filename = normalize_file_base_name(os.path.splitext(os.path.basename(input_file_path))[0]) + ".md"
                 antigravity_output_path = os.path.join(antigravity_output_rules_subdir, antigravity_output_filename)
                 save_antigravity_instructions(antigravity_instructions_content, antigravity_output_path)
                 antigravity_converted_files.append(antigravity_output_path)
 
                 # Qwen Code: base_for_output / .qwen / rel_path_from_input / filename.md
-                qwen_code_output_rules_subdir = os.path.join(base_for_output, ".qwen", rel_path_from_input)
-                qwen_code_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
+                qwen_code_output_rules_subdir = os.path.join(base_for_output, ".qwen", normalized_rel_path_from_input)
+                qwen_code_output_filename = normalize_file_base_name(os.path.splitext(os.path.basename(input_file_path))[0]) + ".md"
                 qwen_code_output_path = os.path.join(qwen_code_output_rules_subdir, qwen_code_output_filename)
                 save_qwen_code_instructions(qwen_code_instructions_content, qwen_code_output_path)
                 qwen_code_converted_files.append(qwen_code_output_path)
@@ -1212,8 +1314,8 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 qwen_master_file_content.append(f"@{relative_path_for_qwen_import}\n")
 
                 # Claude Code: base_for_output / .claude / rules / rel_path_from_input / filename.md
-                claude_code_output_rules_subdir = os.path.join(base_for_output, ".claude", "rules", rel_path_from_input)
-                claude_code_output_filename = os.path.splitext(os.path.basename(input_file_path))[0] + ".md"
+                claude_code_output_rules_subdir = os.path.join(base_for_output, ".claude", "rules", normalized_rel_path_from_input)
+                claude_code_output_filename = normalize_file_base_name(os.path.splitext(os.path.basename(input_file_path))[0]) + ".md"
                 claude_code_output_path = os.path.join(claude_code_output_rules_subdir, claude_code_output_filename)
                 save_claude_code_instructions(claude_code_instructions_content, claude_code_output_path)
                 claude_code_converted_files.append(claude_code_output_path)
@@ -1228,8 +1330,12 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
             else:
                 # Copy non-template files maintaining directory structure
                 # base_for_output / rel_path_from_input / file
-                file_output_dir_specific = os.path.join(base_for_output, rel_path_from_input)
-                output_path = copy_file(input_file_path, file_output_dir_specific)
+                file_output_dir_specific = os.path.join(base_for_output, normalized_rel_path_from_input)
+                output_path = copy_file(
+                    input_file_path,
+                    file_output_dir_specific,
+                    output_name=normalize_file_name(os.path.basename(input_file_path))
+                )
                 copied_files.append(output_path)
 
     # Write Gemini master file
@@ -1255,6 +1361,12 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
     with open(codex_output_path, 'w', encoding='utf-8') as f:
         f.write("\n\n".join(codex_all_content_parts))
     codex_converted_files.append(codex_output_path)
+
+    # Write Kilo Code kilo.json with instructions referencing rules directory
+    kilo_rule_files = [f for f in kilo_code_converted_files if "/.kilo/rules/" in f.replace("\\", "/")]
+    if kilo_rule_files:
+        kilo_json_path = write_kilo_json(base_for_output, kilo_rule_files)
+        kilo_code_converted_files.append(kilo_json_path)
 
     return (vscode_converted_files, roo_converted_files, windsurf_converted_files,
             cline_converted_files, gemini_cli_converted_files, kilo_code_converted_files,

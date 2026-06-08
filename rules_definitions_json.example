@@ -6,5 +6,6 @@ This is a rules_definitions.json example file. Do not use its content as is.
      "https://docs.google.com/document/d/e/2PACX-1vScy4_hNCq7JbTB1BK1B_fnclz4mSUCyRCUN5o4QYW6HOkThpU77Y1dzEGDYe3d8acQXUMJDoIfwzwi/pub"],
     "ApplicationName": "QtDesktopStorybook",
     "GeneralAIToolkitPath": "/home/dev/dev/prj/general-ai-toolkit",
-    "ProjectSpecificAIToolkitPath": "/home/dev/dev/prj/project-ai-toolkit"
+    "ProjectSpecificAIToolkitPath": "/home/dev/dev/prj/project-ai-toolkit",
+    "ProductRequirementsPath": "/home/dev/dev/prj/product_requirements"
 }
