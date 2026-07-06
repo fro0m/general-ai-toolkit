@@ -869,10 +869,10 @@ def save_kilo_code_instructions(instructions_content: str, output_path: str) -> 
 
 def write_kilo_json(base_output_dir: str, rule_files: List[str]) -> str:
     """
-    Write a kilo.json config file with instructions referencing all rule files.
+    Write a kilo.jsonc config file with instructions referencing all rule files.
 
     Per Kilo documentation (https://kilo.ai/docs/customize/custom-rules#vscode):
-    - Project rules are configured via the 'instructions' key in kilo.json
+    - Project rules are configured via the 'instructions' key in kilo.jsonc
     - Rules are placed in .kilo/rules/ directory
     - A glob pattern can reference all rules
 
@@ -881,9 +881,9 @@ def write_kilo_json(base_output_dir: str, rule_files: List[str]) -> str:
         rule_files: List of relative rule file paths
 
     Returns:
-        Path to the written kilo.json file
+        Path to the written kilo.jsonc file
     """
-    kilo_json_path = os.path.join(base_output_dir, "kilo.json")
+    kilo_json_path = os.path.join(base_output_dir, "kilo.jsonc")
 
     instructions = [".kilo/rules/*.md"]
 
@@ -1115,7 +1115,7 @@ def convert_file(input_path_str: str, output_dir_str: Optional[str] = None) -> T
         codex_output_path = os.path.join(base_for_output, "AGENTS.md")
         save_codex_instructions(codex_instructions_content, codex_output_path)
 
-        # Write kilo.json with instructions referencing .kilo/rules/ directory
+        # Write kilo.jsonc with instructions referencing .kilo/rules/ directory
         kilo_rule_files_convert_file = [kilo_new_output_path]
         write_kilo_json(base_for_output, kilo_rule_files_convert_file)
 
@@ -1277,15 +1277,15 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
                 save_gemini_cli_instructions(gemini_cli_instructions_content, gemini_cli_output_path)
                 gemini_cli_converted_files.append(gemini_cli_output_path)
 
-                # Kilo Code: base_for_output / .kilocode / rules / rel_path_from_input / filename.md (legacy)
-                kilo_code_output_rules_subdir = os.path.join(base_for_output, ".kilocode", "rules", normalized_rel_path_from_input)
+                # Kilo Code: base_for_output / .kilocode / rules / filename.md (legacy)
+                kilo_code_output_rules_subdir = os.path.join(base_for_output, ".kilocode", "rules")
                 kilo_code_output_filename = normalize_file_base_name(os.path.splitext(os.path.basename(input_file_path))[0]) + ".md"
                 kilo_code_output_path = os.path.join(kilo_code_output_rules_subdir, kilo_code_output_filename)
                 save_kilo_code_instructions(kilo_code_instructions_content, kilo_code_output_path)
                 kilo_code_converted_files.append(kilo_code_output_path)
 
-                # Kilo Code: base_for_output / .kilo / rules / rel_path_from_input / filename.md (current standard per docs)
-                kilo_rules_subdir = os.path.join(base_for_output, ".kilo", "rules", normalized_rel_path_from_input)
+                # Kilo Code: base_for_output / .kilo / rules / filename.md (current standard per docs)
+                kilo_rules_subdir = os.path.join(base_for_output, ".kilo", "rules")
                 kilo_rules_output_filename = normalize_file_base_name(os.path.splitext(os.path.basename(input_file_path))[0]) + ".md"
                 kilo_rules_output_path = os.path.join(kilo_rules_subdir, kilo_rules_output_filename)
                 save_kilo_code_instructions(kilo_code_instructions_content, kilo_rules_output_path)
@@ -1362,7 +1362,7 @@ def convert_directory(input_dir_str: str, output_dir_str: Optional[str] = None) 
         f.write("\n\n".join(codex_all_content_parts))
     codex_converted_files.append(codex_output_path)
 
-    # Write Kilo Code kilo.json with instructions referencing rules directory
+    # Write Kilo Code kilo.jsonc with instructions referencing rules directory
     kilo_rule_files = [f for f in kilo_code_converted_files if "/.kilo/rules/" in f.replace("\\", "/")]
     if kilo_rule_files:
         kilo_json_path = write_kilo_json(base_for_output, kilo_rule_files)
