@@ -49,7 +49,11 @@ ehthumbs.db
 Thumbs.db
 dashboard.log
 scripts/cpp-tools/output.db
+# Generated static-analysis reports (do not commit)
 scripts/cpp-tools/cpp_analysis_report.txt
-scripts/cpp-tools/output.db
-scripts/cpp-tools/cpp_analysis_report.txt
+scripts/cpp-tools/cpp-analysis-report.txt
 scripts/cpp-tools/cpp-static-analyzer/cpp_analysis_report.txt
+scripts/cpp-tools/cpp-static-analyzer/cpp-analysis-report.txt
+
+# AI tooling scratch (session plans, etc.)
+.zcode/
