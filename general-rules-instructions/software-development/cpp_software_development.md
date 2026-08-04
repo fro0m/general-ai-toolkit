@@ -33,7 +33,7 @@ After completing any C++ development task, always run the following static analy
 Run the comprehensive static analysis script to perform multi-tool analysis:
 
 ```bash
-python3 /home/dev/dev/prj/general-ai-toolkit/scripts/cpp_analyze.py [source_directory]
+python3 /path/to/general-ai-toolkit/scripts/cpp_analyze.py [source_directory]
 ```
 
 This script performs parallel execution of:
@@ -55,13 +55,13 @@ The script automatically:
 
 ```bash
 # Analyze current directory
-python3 /home/dev/dev/prj/general-ai-toolkit/scripts/cpp_analyze.py .
+python3 /path/to/general-ai-toolkit/scripts/cpp_analyze.py .
 
 # Analyze specific source directory
-python3 /home/dev/dev/prj/general-ai-toolkit/scripts/cpp_analyze.py src/
+python3 /path/to/general-ai-toolkit/scripts/cpp_analyze.py src/
 
 # Analyze with verbose output
-python3 /home/dev/dev/prj/general-ai-toolkit/scripts/cpp_analyze.py src/ --verbose
+python3 /path/to/general-ai-toolkit/scripts/cpp_analyze.py src/ --verbose
 ```
 
 ### Integration with Build Process
