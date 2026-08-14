@@ -9,20 +9,9 @@ For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{var
 **Critical**: Before applying any changes to files, AI agents must reread the target file to ensure they have the most current version. Files may have been modified outside of the current session by other processes, users, or concurrent operations.
 
 #### File Change Workflow:
-1. **Always reread before editing**: Use `read_file` tool to get the current state of any file before applying modifications
-2. **Verify file content**: Compare the current file content with your cached version to detect any external changes
-3. **Handle conflicts gracefully**: If the file has been modified externally:
-   - Analyze the changes to understand their impact
-   - Adapt your modifications to work with the current file state
-   - Inform the user about any conflicts or adjustments made
-4. **Document assumptions**: When making changes, note what version of the file you're working with
-5. **Direct File Editing Only**:
-    - All edits must be made directly to the target files
-    - Never create backup copies (e.g., .bak, .backup, .old, .tmp, ~, .swp, etc.)
-    - Do not create legacy versions of files (e.g., file_v2.py, file.old.js)
-    - Do not create temporary files with modified content
-    - Use version control (e.g., Git) for tracking changes instead of creating file copies
-    - If you need to reference previous versions, use the version control history, not file copies
+1. **Always reread before editing**: Use `read_file` to get the current state of a file before modifying it; your cached copy may be stale.
+2. **Adapt to external changes**: If the file changed externally, adapt your edits to the current state and inform the user of any conflict.
+3. **Edit files directly**: Never create backup copies (`.bak`, `.old`, `.tmp`, `file_v2.py`, etc.). Use version control (Git) for history and recovery; do not keep one-off file copies around.
 
 #### Submodules and External Projects (CRITICAL RESTRICTION)
 **NEVER modify files in submodules or external projects**. This includes:
@@ -30,17 +19,6 @@ For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{var
 - Third-party libraries and dependencies (e.g., files in `external/`, `third_party/`, `vendor/`, `lib/`, `dependencies/` directories)
 - Downloaded packages and frameworks (e.g., Qt libraries, CMake modules, package manager dependencies)
 - Any files that are not part of the main project's source code
-
-#### Example File Modification Workflow:
-```bash
-# Step-by-step process for AI agents:
-# 1. Read current file content using read_file tool
-# 2. Compare with cached/expected content
-# 3. Identify any external changes or conflicts
-# 4. Apply changes that are compatible with current state
-# 5. If conflicts exist, resolve them appropriately
-# 6. Document the changes made and reasoning
-```
 
 ### 2. Task Management and Execution
 - **Task Status Handling**:
@@ -51,13 +29,7 @@ For all `.mdc` and `.md` files, any text enclosed in curly braces, such as `{var
   - **Conflict resolution**: If you encounter a "Doing" task that appears stale (no recent activity or updates), consult with the user before proceeding
   - This prevents multiple agents from working on the same task simultaneously and ensures clear ownership and progress tracking
 
-### 3. Product Requirements and Architecture Compliance
-- The product must satisfy `{ApplicationName}-product-requirements.md` and `{ApplicationName}-architecture.md` files
-- `{ApplicationName}-product-requirements.md` has **higher priority** than `{ApplicationName}-architecture.md`
-- Before creating any new classes or major components, update the `{ApplicationName}_architecture.md` document to reflect these planned changes
-- Both documents must **always accurately represent the current state** of the project after any modifications
-
-### 3b. Root Cause Analysis and Problem-Solving Approach
+### 3. Root Cause Analysis and Problem-Solving Approach
 
 **CRITICAL: Never Disable or Ignore Problems**
 When encountering build errors, test failures, or other issues in any part of the project:
@@ -78,12 +50,94 @@ When fixing bugs or addressing issues:
 - **Avoid**: Adding defensive code, excessive error handling, or workarounds that mask the underlying issue
 - **Prefer simplification**: If a function or component is problematic and its utility is questionable, remove it entirely rather than fixing it
 - **Argument evaluation**: If function arguments are unused or unnecessary, remove them instead of attempting to fix their implementation
-- **No Fallback Approaches**: Do not implement fallback logic, placeholders, or default behaviors when encountering incorrect or illegal input arguments. Correct function arguments are the responsibility of the caller, not the callee. Functions must fail fast and clearly when given invalid inputs (see the global rules in `general-rules-instructions/general/general_rules.md`).
+- **No fallbacks on invalid data or input**: see the "Error Handling and Invalid Data" section below.
+
+### 3.1 Error Handling and Invalid Data
+
+This is the single source of truth for code-level error handling. No fallbacks,
+no defaults, no "best-effort" recovery, no guessed values. Functions detect and
+report problems; they never manufacture, coerce, or silently tolerate invalid
+data.
+
+#### Trusted source data
+
+- Source-of-truth data (database rows, values produced by other internal
+  functions, configuration) is **valid by contract**. Code may assume it.
+- If a function **detects** that such data is invalid, it must **raise
+  immediately** with a clear error naming the field/value and what was expected.
+- Do **not** coerce, default, sanitize, synthesize, or guess a replacement value,
+  and do **not** fall back to a degraded path. Repairing the data is the
+  responsibility of the component that **writes** it (the DB writer, the
+  producing function, the config source) — never the consumer's.
+- The function's job is to surface the violation; fixing the data happens
+  elsewhere.
+
+#### Invalid input (caller errors)
+
+- Functions must **not** attempt to process invalid input caused by incorrect
+  API or function usage: wrong type, missing required argument, value out of the
+  legal range, or a broken invariant.
+- Such input is a **developer error**, not a runtime condition to recover from.
+  Fail fast with an error that states which argument or invariant was violated
+  and what was expected.
+- Do not add defensive code that tries to "fix", coerce, or guess the caller's
+  intent. Correct arguments are the caller's responsibility.
+
+#### Untrusted boundary data
+
+- External/boundary data (e.g. responses from network calls) **may be invalid**.
+  Validate it at the boundary.
+- On invalid boundary data, report it to the caller (or raise) — do **not**
+  paper over it with a default, an empty result, or a guessed value.
+- This is distinct from **end-user input**, whose validity and error behavior are
+  governed by the product requirements (PRD), not by this rule.
+
+#### Common rules
+
+- Fail the operation **immediately** with a clear, specific error that names what
+  went wrong and what input/state caused it.
+- Never catch an error only to return a silent default, an empty result, or a
+  guessed value. Surface the error instead.
+
+### 3.2 Function Contracts: Preconditions and Postconditions
+
+Every function defines a **contract**: its **preconditions** (what must hold on
+entry — argument validity, required call order, object state) and its
+**postconditions** (what the function guarantees before returning — result
+invariants, the state changes it promises). Every function with a non-trivial
+contract must **check** that contract, not merely imply it:
+
+- Check **preconditions at entry**: an invalid argument (wrong type, missing,
+  out of legal range), a violated call order, or a broken object state is a
+  **caller (developer) error** per §3.1. A contract check is the sanctioned
+  way to surface it — never guard a caller-contract violation with
+  `if`/`else` "defensive" branches that hide the bug.
+- Check **postconditions before returning**: the non-obvious invariants the
+  function promises (a normalized result, a required side effect, a non-empty
+  collection where the contract demands one).
+
+Rules:
+
+- **The checking mechanism is named by each language's own coding
+  conventions** — languages do not share one mechanism. For example, the
+  Ubego C++/Qt projects use the `ASSERT_CHECK` macro; Python uses
+  `assert condition, "message"`; PHP uses `assert()`. Follow the
+  language-specific conventions; do not invent per-project mechanisms.
+- Contract checks are **active in debug/test builds and compiled out in
+  release** — they document and verify the contract during development and
+  in the test suite, with zero production overhead.
+- They target **developer/caller violations only**. They do **not** replace
+  boundary validation of untrusted data (§3.1 — external input is validated
+  at the boundary and errors are reported), and they do **not** decide the
+  behavior for end-user input, which is governed by the product requirements.
+- Do **not** check what the code trivially shows, do not check untrusted
+  data with contract checks, and do not use contract checks for control
+  flow. A trivial one-line function whose contract is fully expressed by its
+  types needs no checks.
 
 ### 4. Code Quality and Maintenance Standards
-- Remove legacy code that is no longer in use, deprecated, or replaced by newer implementations
-- Delete unused files that are not essential for the project's functionality or build process
-- Clean up temporary files created during development that are no longer needed
+- **Pre-existing dead/unused code or files**: if you encounter them, surface them to the user and ask before removing. Do not delete code you did not write as part of this task unless asked.
+- Clean up temporary or one-time-use files you create during the task; do not leave them behind. Use version control (Git) for history instead of keeping file copies.
 - Ensure all code follows the project's established patterns and conventions
 - **Do not create file backups** (e.g., .bak, .backup, .old files) during development operations - rely on version control for file history and recovery
 - **No Backward Compatibility**: When introducing a new feature to replace an old one, remove the old implementation completely. Do not maintain parallel code paths or deprecated functionality for backward compatibility. Keep only the current, preferred approach to maintain code simplicity and reduce maintenance burden, and always refactor the project to use the current approach throughout the codebase
@@ -94,7 +148,7 @@ When fixing bugs or addressing issues:
 - **NO AI Agent Activity Comments**: Do not add comments explaining what the AI agent has done (e.g., "// Added by AI agent", "// Fixed by Claude")
 - **NO Obvious Code Explanations**: Do not add comments that simply restate what the code does (e.g., `i++; // increment i`)
 - **NO Section Annotations**: Do not annotate code with comment blocks that divide code into sections (e.g., `// === MAIN LOGIC ===`, `// --- Helper Functions ---`)
-- **NO Future planning** Do not add  TODO comments for genuine future improvements (sparingly)
+- **NO Future planning**: Do not add TODO comments for genuine future improvements
 - **NO Comments Without Request**: Do not add comments to source code unless explicitly requested by the user. Code should be self-documenting through clear naming and structure
 
 **Allowed Comments**:
@@ -133,12 +187,6 @@ Use all coding guidelines from the `{CodingGuidelinesURLs}` list, which can cont
 - If tests fail: Debug and fix underlying issues until all unit tests pass
 - If integration issues arise: Resolve compatibility problems before proceeding
 - **Do not proceed** to the next development phase until current issues are resolved
-
-**ABSOLUTE PROHIBITION**: 
-- **NEVER disable failing builds** by excluding components, modules, or dependencies from the build process
-- **NEVER comment out or remove failing tests** to make the test suite pass
-- **NEVER downgrade dependencies or disable features** to avoid addressing compatibility problems
-- Every build error and test failure MUST be resolved through proper fixes, not avoidance tactics
 
 ## Documentation and Version Control
 
