@@ -99,6 +99,42 @@ data.
 - Never catch an error only to return a silent default, an empty result, or a
   guessed value. Surface the error instead.
 
+### 3.2 Function Contracts: Preconditions and Postconditions
+
+Every function defines a **contract**: its **preconditions** (what must hold on
+entry — argument validity, required call order, object state) and its
+**postconditions** (what the function guarantees before returning — result
+invariants, the state changes it promises). Every function with a non-trivial
+contract must **check** that contract, not merely imply it:
+
+- Check **preconditions at entry**: an invalid argument (wrong type, missing,
+  out of legal range), a violated call order, or a broken object state is a
+  **caller (developer) error** per §3.1. A contract check is the sanctioned
+  way to surface it — never guard a caller-contract violation with
+  `if`/`else` "defensive" branches that hide the bug.
+- Check **postconditions before returning**: the non-obvious invariants the
+  function promises (a normalized result, a required side effect, a non-empty
+  collection where the contract demands one).
+
+Rules:
+
+- **The checking mechanism is named by each language's own coding
+  conventions** — languages do not share one mechanism. For example, the
+  Ubego C++/Qt projects use the `ASSERT_CHECK` macro; Python uses
+  `assert condition, "message"`; PHP uses `assert()`. Follow the
+  language-specific conventions; do not invent per-project mechanisms.
+- Contract checks are **active in debug/test builds and compiled out in
+  release** — they document and verify the contract during development and
+  in the test suite, with zero production overhead.
+- They target **developer/caller violations only**. They do **not** replace
+  boundary validation of untrusted data (§3.1 — external input is validated
+  at the boundary and errors are reported), and they do **not** decide the
+  behavior for end-user input, which is governed by the product requirements.
+- Do **not** check what the code trivially shows, do not check untrusted
+  data with contract checks, and do not use contract checks for control
+  flow. A trivial one-line function whose contract is fully expressed by its
+  types needs no checks.
+
 ### 4. Code Quality and Maintenance Standards
 - **Pre-existing dead/unused code or files**: if you encounter them, surface them to the user and ask before removing. Do not delete code you did not write as part of this task unless asked.
 - Clean up temporary or one-time-use files you create during the task; do not leave them behind. Use version control (Git) for history instead of keeping file copies.
