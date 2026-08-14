@@ -119,9 +119,8 @@ contract must **check** that contract, not merely imply it:
 Rules:
 
 - **The checking mechanism is named by each language's own coding
-  conventions** — languages do not share one mechanism. For example, the
-  Ubego C++/Qt projects use the `ASSERT_CHECK` macro; Python uses
-  `assert condition, "message"`; PHP uses `assert()`. Follow the
+  conventions** — languages do not share one mechanism (typically an
+  `assert` statement or a project-standard assert macro). Follow the
   language-specific conventions; do not invent per-project mechanisms.
 - Contract checks are **active in debug/test builds and compiled out in
   release** — they document and verify the contract during development and

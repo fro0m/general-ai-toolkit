@@ -9,21 +9,13 @@ This document provides guidelines for creating comprehensive Product Requirement
 
 ## 2. Version History
 - **Version History**: Document the version history of the product feature.
-  - **Statuses**:
-    - **Requirements WIP**: This version of requirements is in the process of writing.
-    - **Ready to Implement**: Product requirements for a specific version are complete and ready to implement.
-    - **Implemented**: This version of the product feature requirements is already implemented.
-
-### Example Table:
-| Version | Status Mobile App | Status Backend | Status {ProductName} |
-|---------|-------------------|----------------|----------------------|
-| 1.0     | Implemented       | Implemented    | Implemented          |
-| 1.1     | Ready to Implement| Ready to Implement| Ready to Implement |
-| 1.2     | Requirements WIP | Requirements WIP| Requirements WIP     |
-
-- **Conventions**:
-  - A new minor version of requirements must be created when the previous version has a status of "Implemented."
-  - Adding more details to the current version does not require creating a new version.
+  - Track a **status per version** (e.g. draft → ready to implement →
+    implemented) and, when a requirement covers multiple product surfaces,
+    **per surface**.
+  - A new minor version is opened when the previous version is finalized;
+    adding detail to the current version does not open a new one.
+  - The exact statuses, table columns, and versioning cadence are defined by
+    the project's own requirements template — not by this document.
 
 ## 3. Purpose and Goals
 - **Problem Statement**: Describe the problem the product aims to solve from the user's perspective. Be specific about the pain points addressed.
@@ -82,10 +74,9 @@ This document provides guidelines for creating comprehensive Product Requirement
   - Attempting to bypass required steps in a workflow.
   - Using the feature in an unsupported environment or state.
   
-  For each use case, describe:
-  - BPMN diagrams (linked to `.bpmn` files).
-  - Flow charts or use-case diagrams created using PlantUML syntax.
-  - Steps sequence as a list of text entries with actions from the user's perspective.
+  For each use case, describe the flow from the user's perspective — step
+  sequences as text entries, plus diagrams (e.g. BPMN, PlantUML flow/use-case
+  diagrams) where the project's own conventions require them.
 - **Visual UI**: Describe the visual appearance of the feature and how users will interact with it.
 - **User Requirements**: Focus on what the user needs to accomplish, not how the system will implement it.
 - **User**: Reference specific user persona(s) from Section 5 (Target Audience - User Personas) that this feature serves.
@@ -106,8 +97,9 @@ This document provides guidelines for creating comprehensive Product Requirement
   - Automatically generate a table of contents for the document and its tabs.
   - Ensure a logical flow from high-level concepts to detailed specifications.
 - **Resources**:
-  - Resources like `.bpmn` diagram files must reside in the current document's sibling directory with the same name as the document.
-  - Include links to design assets, research documentation, and other relevant resources.
+  - Link design assets, research documentation, diagrams, and other related
+    resources. Store resource files where the project's own conventions
+    place them (the project's requirements template is authoritative).
 
 ## 15. Best Practices
 - **User-Centricity**: Always focus on the user's perspective and value, not technical implementation.
