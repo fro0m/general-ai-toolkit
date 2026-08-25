@@ -49,7 +49,11 @@ This document provides guidelines for creating comprehensive Product Requirement
 - **Platform Requirements**: Specify supported platforms (e.g., web, mobile) and minimum versions/specifications from a user compatibility perspective.
 - **Performance Requirements**: Define speed, scalability, and reliability expectations from the user's experience standpoint.
 - **Security Requirements**: Highlight security measures and compliance needs that impact user privacy and trust.
-- **Note**: Focus on requirements from the user's perspective. Technical implementation details belong in the Architecture document.
+- **Note**: Focus on requirements from the user's perspective. Technical
+  implementation details belong in the Architecture document. **Test
+  implementation details** (endpoints, payloads, fixtures, harness wiring)
+  belong in a separate technical tests section when the project's own
+  requirements template defines one — not in the user-facing tests.
 
 ## 10. Dependencies
 - **Internal Dependencies**: List dependencies on other teams or internal systems.
@@ -106,7 +110,7 @@ This document provides guidelines for creating comprehensive Product Requirement
 - **Clear Language**: Use simple, concise language and avoid technical jargon unless defining it.
 - **Specificity**: Be as specific as possible rather than using general phrases.
 - **Traceability**: Ensure requirements can be traced back to business goals and user needs.
-- **Validation**: Include acceptance criteria that can verify whether requirements have been met. The acceptance criteria and tests must cover the four scenario categories — normal use cases, edge cases, error conditions, and security (adversarial) scenarios — wherever the feature has an attack surface (accepted input, authentication/authorization decisions, exposed endpoints); see §7 and §13 for adversarial use cases.
+- **Validation**: Include acceptance criteria that can verify whether requirements have been met. The acceptance criteria and tests must cover the four scenario categories — normal use cases, edge cases, error conditions, and security (adversarial) scenarios — wherever the feature has an attack surface (accepted input, authentication/authorization decisions, exposed endpoints); see §7 and §13 for adversarial use cases. Write those tests as business-facing scenarios a stakeholder can read and accept. Endpoints, payloads, fixtures, and harness wiring belong in a separate technical tests section when the project's own requirements template defines one — not in the user-facing tests, and not in Architecture unless they are system design.
 - **Links**: Add links to descriptions of terms in other requirements to facilitate navigation and understanding.
 - **Versioning**: Maintain clear version control for your PRD as requirements evolve.
 - **Priority**: Clearly indicate the priority of features using consistent methodology (e.g., MoSCoW).
