@@ -102,10 +102,9 @@ data.
 ### 3.2 Function Contracts: Preconditions and Postconditions
 
 Do **not** restate the language-neutral function-contracts rule here. Follow
-the project's general coding conventions — in Ubego,
-`{DevelopersOnboardingPath}/coding-conventions/general_coding_conventions.md`
-item 14. Each language's own coding conventions name only the checking
-mechanism (`assert`, `ASSERT_CHECK`, …); see `{CodingGuidelinesURLs}`.
+the project's general coding conventions (see `{CodingGuidelinesURLs}`) for the
+underlying contract rule. Each language's own coding conventions name only the
+checking mechanism (`assert`, `ASSERT_CHECK`, …).
 
 A contract check surfaces a **caller (developer) error** per §3.1. It does
 not replace boundary validation of untrusted data, and it does not decide
