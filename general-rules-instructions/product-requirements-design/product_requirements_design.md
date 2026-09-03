@@ -5,6 +5,17 @@ Tests in the PRD are part of that business document: they describe what a stakeh
 
 **Important Requirements Scope**: The product requirements document must describe ONLY the features that the user explicitly requests. If the user does not specify something important for the product functionality, the AI agent must ask the user interactively for clarification rather than making assumptions about what features should be included.
 
+UI Design (products with a user interface):
+A product that has a user interface carries a third first-class artifact alongside the requirements and the source code: its **UI design files**. The UI design is created or refined **after** the product requirements are written and **before** implementation starts, and it is derived from the requirements — never the other way round. Refine every existing screen the change touches, and add new screens and navigation flows for new functionality. If designing exposes a gap in the requirements, fix the requirements first, then continue the design. A product with no user interface (a backend service, a script, a library) has no UI design files and none are expected for it.
+
+**Parity.** The artifacts describing a product and the artifacts implementing it must match at all times, not merely at the end of a change:
+- product **with** a user interface — three-way: `Product Requirements <-> UI Design Files <-> Source Code (+ tests)`
+- product **without** a user interface — two-way: `Product Requirements <-> Source Code (+ tests)`
+
+The product requirements are written first and remain the origin of truth: neither a UI design nor an implementation may introduce behaviour the requirements do not specify. On divergence, update the requirements first, then bring the other sides back into line. On *unexpected* divergence — the sides disagree and you did not deliberately choose to update the requirements — stop and report the concrete discrepancy rather than silently editing either side.
+
+**Order of work.** Requirements design -> UI design (skipped when the product has no UI) -> implementation of the change and its tests -> verification -> integration into the repository. Each step begins only when the previous one is complete.
+
 Architecture ({ApplicationName}-architecture.md):
 The architecture document outlines the technical blueprint and structure of a system or project from a **software developer's perspective**. It defines how the system is designed, including its components, their interactions, and the technologies used to meet the project\'s goals. This includes technical requirements such as system scalability, performance, security, data flow, and infrastructure details. The architecture.md file should focus on the **"how"** of the system from a technical standpoint, detailing the technical specifications, frameworks, programming languages, data models, algorithms, and design patterns that guide development. For example, it might specify the database schema, API contracts, microservice interactions, or cloud infrastructure setup.
 
