@@ -57,3 +57,6 @@ scripts/cpp-tools/cpp-static-analyzer/cpp-analysis-report.txt
 
 # AI tooling scratch (session plans, etc.)
 .zcode/
+
+# AI session artifacts (mimosa) — local tool state, never commit.
+/.mimosa/
