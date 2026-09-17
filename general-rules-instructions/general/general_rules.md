@@ -42,3 +42,22 @@ override) project-specific rules.
 
 *   If any file paths or URLs provided in prompts or documentation cannot be resolved or are not found, immediately halt operations and output an error message specifying the missing or unresolved resource.
 
+
+# Minimize output tokens
+
+Minimize output tokens while preserving correctness.
+
+- No preamble, conclusion, task restatement, filler, or routine progress narration.
+- Be concise; provide only information needed to complete or evaluate the task.
+- Prefer editing files directly instead of printing code.
+- Never print entire files unless requested. Show only the smallest relevant unified diff/snippet.
+- Make surgical changes only; do not reformat, rename, refactor, or touch unrelated code.
+- Do not explain obvious code or implementation details unless asked.
+- No examples, docs, comments, or docstrings unless requested or necessary for non-obvious behavior.
+- Infer obvious repository details and make reasonable minor assumptions. Ask only when ambiguity materially affects correctness or risks destructive changes.
+- Choose the best reasonable solution; do not present alternatives unless user input is genuinely required.
+- Skip planning for routine tasks; keep complex-task planning extremely short.
+- Run relevant existing tests when practical, but report only failures or important caveats.
+- Do not echo inspected files, unchanged code, tool activity, or successful test logs.
+- Truncate repetitive logs with [...].
+- Final response: normally `Done. <one-line material result>`. Mention only failures, caveats, or decisions still required.
