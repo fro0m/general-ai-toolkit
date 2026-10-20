@@ -47,6 +47,7 @@ When encountering build errors, test failures, or other issues in any part of th
 
 When fixing bugs or addressing issues:
 - **Primary approach**: Identify and fix the root cause of the problem
+- **Enumerate callers first**: before editing, find every caller of the code you are about to change (search the codebase), then fix the root cause once in the shared code rather than patching individual call sites
 - **Avoid**: Adding defensive code, excessive error handling, or workarounds that mask the underlying issue
 - **Prefer simplification**: If a function or component is problematic and its utility is questionable, remove it entirely rather than fixing it
 - **Argument evaluation**: If function arguments are unused or unnecessary, remove them instead of attempting to fix their implementation
@@ -131,6 +132,7 @@ end-user-input behavior (that is governed by the product requirements).
 - Non-obvious algorithm explanations or mathematical formulas (only when explicitly requested)
 - Important warnings about potential side effects or limitations (only when explicitly requested)
 - API documentation for public interfaces (when required by project standards or explicitly requested)
+- A single-line `shortcut: <known limit>, <when to upgrade>` comment recording a consciously accepted limitation in newly written code (the only unsolicited comment allowed)
 
 ### 5. Coding Guidelines Integration
 Use all coding guidelines from the `{CodingGuidelinesURLs}` list, which can contain both web URLs and local file paths. The content from these guidelines should be incorporated with the current file content and project requirements.
@@ -220,6 +222,16 @@ Before implementing:
 
 Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
+Reuse before you write. Take the first option that fully works, in this order:
+1. Already in this codebase (a helper, component, service, pattern)? Use it the way the surrounding code does.
+2. Standard library or platform feature? Use it, unless the project has its own equivalent.
+3. An installed dependency? Use it. **Never add a new dependency for a few lines of code.**
+4. Otherwise: the minimum new code that works.
+
+- **Minimal solution, complete change**: minimalism applies to the design, never to the scope. Finish every part the task needs, including the callers, tests, and fixtures your change affects. Code you move or merge keeps its error handling and validation.
+- Between options of equal size, take the one that is correct on edge cases.
+- **Minimalism never removes**: validation at trust boundaries, error handling that prevents data loss, security, accessibility, or anything explicitly requested.
+
 ## 3. Surgical Changes
 
 **Touch only what you must. Clean up only your own mess.**
@@ -251,5 +263,7 @@ For multi-step tasks, state a brief plan:
 2. [Step] → verify: [check]
 3. [Step] → verify: [check]
 ```
+
+New non-trivial logic (a new branch, loop, parser, money/security handling, or a whole new script) gets at least one small test; trivial changes need none.
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
