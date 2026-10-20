@@ -122,6 +122,7 @@ end-user-input behavior (that is governed by the product requirements).
 #### Code Comment Standards
 **Prohibited Comments**:
 - **NO AI Agent Activity Comments**: Do not add comments explaining what the AI agent has done (e.g., "// Added by AI agent", "// Fixed by Claude")
+- **NO Historical Notes**: Do not record history in comments — no "previously", "used to", "was changed because", old behaviour, or migration narratives. Comments state the actual current state only; git history holds the past.
 - **NO Obvious Code Explanations**: Do not add comments that simply restate what the code does (e.g., `i++; // increment i`)
 - **NO Section Annotations**: Do not annotate code with comment blocks that divide code into sections (e.g., `// === MAIN LOGIC ===`, `// --- Helper Functions ---`)
 - **NO Future planning**: Do not add TODO comments for genuine future improvements

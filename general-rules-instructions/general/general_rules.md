@@ -28,6 +28,18 @@ override) project-specific rules.
   conventions, build commands, and architecture, in addition to these global
   rules.
 
+## Current-directory discipline: no worktrees, no side clones
+
+- Work in the current working directory. **Never create a git worktree, never
+  clone the repository into a separate directory, and never move work from the
+  current working directory into a worktree or a fresh clone elsewhere** to work
+  around a dirty, broken, or inconvenient state.
+- Before starting work, clean up the current working directory:
+  - Changes that look useful but are not evidently part of the task: **ask the
+    user** (commit them, stash them, or set them aside) before touching them.
+  - If the directory contains only trash (untracked scratch files, temporary
+    output, editor droppings), discard it without asking.
+
 # Handling Errors in Documentation and Guidelines
 
 *   Fix obvious typos, broken references, and stale instructions directly in the
