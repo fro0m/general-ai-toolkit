@@ -40,6 +40,19 @@ override) project-specific rules.
   - If the directory contains only trash (untracked scratch files, temporary
     output, editor droppings), discard it without asking.
 
+## Temporary and time-related documents: create them outside the workspace
+
+- Create **all** temporary files and time-related documents — implementation
+  plans, to-do lists, working notes, scratch dumps, session-state snapshots —
+  **outside the workspace**, in a location the VCS (git) cannot see. Never
+  place them inside the repository working tree: anything there shows up in
+  `git status`, risks being committed, and clutters every future reader of the
+  history.
+- A document that is genuinely permanent belongs in the repository
+  **deliberately** — placed under `docs/` (or the location the project
+  prescribes) as part of a reviewed change — never as a side effect of scratch
+  work.
+
 # Handling Errors in Documentation and Guidelines
 
 *   Fix obvious typos, broken references, and stale instructions directly in the
