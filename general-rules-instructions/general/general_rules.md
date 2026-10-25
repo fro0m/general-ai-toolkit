@@ -48,6 +48,18 @@ override) project-specific rules.
   place them inside the repository working tree: anything there shows up in
   `git status`, risks being committed, and clutters every future reader of the
   history.
+- Put them under `${HOME}/<ai-agent-name>/<files-type>/`, where
+  `<ai-agent-name>` is the agent's own name (e.g. `claude`, `codex`, `qwen`)
+  and `<files-type>` names the kind of file: `plans`, `logs`, `notes`,
+  `scratch`, `reports`, `artifacts`, and so on. Create the directories on
+  demand. Per-task material goes one level deeper (`.../plans/<task-id>/`).
+- **Never create files or directories directly in the root of the home
+  directory** (`${HOME}/foo.log`, `${HOME}/scratch-x/`). Everything an agent
+  creates for its own use lives under its `${HOME}/<ai-agent-name>/` tree, so
+  one directory shows what an agent owns and can be reviewed or cleaned up
+  without touching anything else.
+- Only clean up inside your own `${HOME}/<ai-agent-name>/` tree; never delete
+  another agent's tree or files you did not create.
 - A document that is genuinely permanent belongs in the repository
   **deliberately** — placed under `docs/` (or the location the project
   prescribes) as part of a reviewed change — never as a side effect of scratch
