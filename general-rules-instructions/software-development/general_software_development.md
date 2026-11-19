@@ -166,6 +166,88 @@ Use all coding guidelines from the `{CodingGuidelinesURLs}` list, which can cont
 - If integration issues arise: Resolve compatibility problems before proceeding
 - **Do not proceed** to the next development phase until current issues are resolved
 
+### Test Effectiveness and Mutation Testing (MANDATORY)
+
+**A passing test is not evidence of correctness.** A test proves something only
+if it would FAIL when the behavior it verifies is meaningfully broken. A green
+test suite alone is never sufficient; test effectiveness is part of the
+definition of done of any task that adds or changes behavior.
+
+Every behavioral test must:
+
+1. **Verify specified behavior** with **meaningful behavioral assertions** —
+   assert the observable outcome (returned value, resulting state, side
+   effect, error, invariant), not merely that execution succeeded.
+2. **Derive expected results independently** — from the requirements, the PRD
+   acceptance criteria, or an independent specification/public oracle. Never
+   read the expected value from the implementation under test, and never copy
+   the implementation's formula into the test as the only oracle unless the
+   test also pins specification-derived vectors around it.
+3. **Cover the applicable positive, negative, and boundary scenarios** of the
+   behavior — not only the happy path.
+4. **Verify relevant outputs, state changes, side effects, errors, or
+   invariants** — "the call did not throw" is not an assertion about behavior.
+5. **Not mock the behavior under test.** Mocks may stand in for collaborators
+   (network, clock, filesystem); the mocked-out code must never be the thing
+   the test is supposed to verify. Existence assertions remain acceptable
+   when existence itself is the requirement being verified.
+
+**Prohibited (meaningless) tests** — they must not be written, and existing
+ones found during a task must not be extended:
+
+- Assertions that are always true, or comparisons of a value with itself.
+- Tests that only check successful execution when a specific behavior must be
+  verified.
+- Tests that swallow exceptions or assertion failures (broad try/except around
+  assertions, catch-and-log instead of assert).
+- Tests that verify only mocked behavior instead of the real implementation.
+- Tests that cannot detect relevant incorrect behavior of what they claim to
+  cover.
+
+### Test Sensitivity Verification (MANDATORY for new and materially changed behavioral tests)
+
+Before a behavioral test is accepted, demonstrate that it can detect a
+representative defect:
+
+1. Run the test against the correct implementation and confirm it **passes**.
+2. Introduce a relevant mutation or a controlled defect in the implementation.
+3. Confirm the test **fails because its behavioral assertion detects the
+   defect** (not because of an unrelated setup error).
+4. **Restore** the original implementation.
+5. Confirm the test **passes again**.
+
+Where the project has mutation testing configured (see the project's
+`docs/mutation_testing.md`), it automates steps 2–4. For integration and E2E
+tests where source-level mutation testing is impractical, use **targeted
+fault injection** (chaos controls, stubbed responses, deliberately corrupted
+inputs) to verify sensitivity. A test that passes against both the correct and
+a meaningfully incorrect implementation must NOT be accepted as adequate
+verification of that behavior — strengthen it or drop it.
+
+### Mutation Testing (project policy)
+
+- Each project with a compatible test framework runs a maintained
+  mutation-testing tool over its business logic (e.g. Infection for PHP,
+  StrykerJS for TypeScript; see the project's `docs/mutation_testing.md` for
+  the configured tool, scope, and thresholds). Mutation testing mutates
+  **production code only** — never the tests.
+- The mutation-testing CI quality gate is **blocking**. It must fail closed:
+  a tool crash, a missing/invalid report, or missing required results can
+  never count as a pass. Surviving relevant mutants must be investigated:
+  strengthen the test (an independent-oracle assertion), or justify the
+  mutant as equivalent in the merge request.
+- Undetected critical defects in authorization, payments, financial
+  operations, and important state transitions are **blocking** unless
+  independently justified in the merge request.
+- **Never bypass a quality gate by weakening assertions, excluding difficult
+  code, disabling or skipping tests, or lowering thresholds or baselines.**
+  Mutation configuration and threshold/baseline changes are themselves part
+  of the merge request review — the reviewer must treat a threshold or
+  scope reduction as a red flag, not a fix.
+- Known-surviving legacy mutants are handled through the project's recorded
+  baselines (investigate → kill, or justify as equivalent), never by
+  blanket-excluding files from mutation.
+
 ## Documentation and Version Control
 
 ### Documentation Updates
