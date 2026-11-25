@@ -236,6 +236,18 @@ verification of that behavior — strengthen it or drop it.
   never count as a pass. Surviving relevant mutants must be investigated:
   strengthen the test (an independent-oracle assertion), or justify the
   mutant as equivalent in the merge request.
+- Run mutation testing **unprivileged and on a disposable tree**. A mutant
+  can break a guard around a destructive operation (a recursive delete, a
+  shell command); with root privileges it then deletes the toolchain or the
+  developer's files mid-run, and the run fails as an inexplicable tool
+  crash. The mutation workload runs as an unprivileged user in a container
+  that mounts only a disposable checkout — never a developer's working tree,
+  the docker socket, or a shared host directory.
+- A kill is evidence only when a behavioral assertion fails. A fixture that
+  breaks during the run (a lost connection, a shared temp directory, a
+  process killed by another test) "kills" every mutant it covers and inflates
+  the score: fixtures are private to one test process, and a repeated run of
+  unchanged code must report the same score.
 - Undetected critical defects in authorization, payments, financial
   operations, and important state transitions are **blocking** unless
   independently justified in the merge request.
